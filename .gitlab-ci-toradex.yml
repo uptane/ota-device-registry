@@ -44,11 +44,6 @@ test:
     - mysql -v -h db -u root -proot < db_user.sql
   script:
     - sbt test
-  cache:
-    when: always
-    paths:
-      - .ivy2/
-      - .sbt/
 
 include:
   - project: rd/innovation/continuous-delivery/ci-container-build
