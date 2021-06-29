@@ -12,6 +12,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import akka.http.scaladsl.settings.{ParserSettings, ServerSettings}
+import cats.Eval
 import com.advancedtelematic.libats.auth.NamespaceDirectives
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http._
@@ -23,16 +24,23 @@ import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthR
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
 import com.advancedtelematic.ota.deviceregistry.db.DeviceRepository
+import com.advancedtelematic.ota.deviceregistry.device_monitoring.DeviceMonitoringDB
 import com.advancedtelematic.ota.deviceregistry.http.`application/toml`
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.Future
 import scala.util.Try
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 trait Settings {
   private lazy val _config = ConfigFactory.load()
 
   val directorUri = Uri(_config.getString("director.uri"))
+
+  lazy val deviceMonitoringEnabled = _config.getBoolean("device_monitoring.enabled")
+
+  lazy val deviceMonitoringDbUrl = _config.getString("device_monitoring.db.url")
 }
 
 object Boot extends BootApp
@@ -62,6 +70,13 @@ object Boot extends BootApp
   lazy val messageBus = MessageBus.publisher(system, config)
 
   val tracing = Tracing.fromConfig(config, projectName)
+
+  implicit val monitoringDB = Eval.later(DeviceMonitoringDB.fromConfig())
+
+  if(deviceMonitoringEnabled) {
+    log.info("device monitoring is enabled, saving metrics to " + deviceMonitoringDbUrl)
+    Await.result(monitoringDB.value.migrate(), Duration.Inf)
+  }
 
   val routes: Route =
   (LogDirectives.logResponseMetrics("device-registry") & requestMetrics(metricRegistry) & versionHeaders(version)) {

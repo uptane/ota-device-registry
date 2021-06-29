@@ -14,6 +14,7 @@ variables:
   MYSQL_DATABASE: "device_registry"
   MYSQL_USER: "device_registry"
   MYSQL_PASSWORD: "device_registry"
+  POSTGRES_PASSWORD: "password"
   SERVICE: "device-registry"
 
 image: artifactory-horw.int.toradex.com/ota-docker-dev-horw/tdx-inno-ci-scala:0.0.1
@@ -37,6 +38,8 @@ test:
       - merge_requests
       - branches
   services:
+    - name: timescale/timescaledb:2.3.0-pg12
+      alias: timescaledb
     - name: mariadb:10.4
       alias: db
       command:
@@ -45,6 +48,7 @@ test:
         - --max_connections=1000
   variables:
     DB_URL: "jdbc:mariadb://db:3306/device_registry"
+    DEVICE_MONITORING_DB_URL: "jdbc:postgresql://timescaledb:5432/"
   before_script:
     - echo "CREATE DATABASE device_registry_test; CREATE DATABASE device_registry_ptest; GRANT ALL PRIVILEGES ON \`device\_registry%\`.* TO 'device_registry'@'%'; FLUSH PRIVILEGES; " > db_user.sql
     - until mysqladmin ping --protocol=TCP -h db -P 3306 -u root -proot; do echo waiting for mysql; sleep 1; done
