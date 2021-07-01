@@ -14,6 +14,7 @@ variables:
   MYSQL_DATABASE: "device_registry"
   MYSQL_USER: "device_registry"
   MYSQL_PASSWORD: "device_registry"
+  POSTGRES_USER: "device_monitoring"
   POSTGRES_PASSWORD: "password"
   SERVICE: "device-registry"
 
