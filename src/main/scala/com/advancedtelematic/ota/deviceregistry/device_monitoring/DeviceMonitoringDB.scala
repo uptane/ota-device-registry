@@ -28,7 +28,7 @@ class DeviceMonitoringDB(protected[device_monitoring] val db: slick.jdbc.Postgre
       CREATE TABLE IF NOT EXISTS device_observations (
         time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
         namespace varchar(255) not NULL,
-        device_uuid uuid NOT NULL,
+        device_uuid char(36) NOT NULL,
         cpu_p double PRECISION NULL,
         temp double PRECISION NULL,
         mem_used double PRECISION NULL,
