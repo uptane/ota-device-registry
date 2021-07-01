@@ -9,6 +9,7 @@ import com.advancedtelematic.ota.deviceregistry.device_monitoring.{DeviceMonitor
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import cats.syntax.either._
+import org.slf4j.LoggerFactory
 
 
 class DeviceMonitoringResource(namespaceExtractor: Directive1[AuthedNamespaceScope],
@@ -19,11 +20,15 @@ class DeviceMonitoringResource(namespaceExtractor: Directive1[AuthedNamespaceSco
 
   val deviceMonitoring = new DeviceMonitoring
 
+  private lazy val log = LoggerFactory.getLogger(this.getClass)
+
   val route: Route =
     (pathPrefix("devices") & namespaceExtractor) { ns =>
       deviceNamespaceAuthorizer { uuid =>
         path("monitoring") {
           (post & entity(as[Json])) { payload =>
+            log.debug("device observation from client: {}", payload.noSpaces)
+
             val parsed = deviceMonitoring.parse(ns.namespace, uuid, payload).valueOr(throw _)
             val f = deviceMonitoring.persist(parsed, payload).map(_ => StatusCodes.NoContent)
             complete(f)
