@@ -76,7 +76,7 @@ class DeviceMonitoringResourceSpec extends FunSuite with ResourceSpec with Scala
       status shouldBe StatusCodes.NoContent
     }
 
-    val sql = sql"""SELECT cpu_p, docker_alive from device_observations where device_uuid = ${uuid.show}::uuid""".as[(Double, Boolean)]
+    val sql = sql"""SELECT cpu_p, docker_alive from device_observations where device_uuid = ${uuid.show}""".as[(Double, Boolean)]
 
     monitoringDB.value.db.run(sql).futureValue.loneElement shouldBe (0.1855555555555556, true)
 
@@ -84,7 +84,7 @@ class DeviceMonitoringResourceSpec extends FunSuite with ResourceSpec with Scala
       io.circe.jawn.parse(result.rs.getString("payload")).valueOr(throw _)
     }
 
-    val sql0 = sql"""SELECT payload from device_raw_observations where device_uuid = ${uuid.show}::uuid""".as[Json]
+    val sql0 = sql"""SELECT payload from device_raw_observations where device_uuid = ${uuid.show}""".as[Json]
 
     monitoringDB.value.db.run(sql0).futureValue.loneElement shouldBe jsonPayload
   }
@@ -109,6 +109,8 @@ class DeviceMonitoringResourceSpec extends FunSuite with ResourceSpec with Scala
 
   override def beforeAll(): Unit = {
     super.beforeAll()
+    val dropSql = sql"DROP SCHEMA IF EXISTS device_monitoring cascade; create schema device_monitoring".asUpdate
+    monitoringDB.value.run(dropSql).futureValue
     monitoringDB.value.migrate().futureValue
   }
 }
