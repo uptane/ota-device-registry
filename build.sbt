@@ -8,10 +8,6 @@ lazy val `ota-device-registry` =
     .enablePlugins(GitVersioning, BuildInfoPlugin, DockerPlugin, JavaAppPackaging)
     .settings(settings)
     .settings(
-      resolvers += "Releases" at "https://nexus.ota.here.com/content/repositories/releases",
-      resolvers += "Central" at "https://nexus.ota.here.com/content/repositories/central"
-    )
-    .settings(
       libraryDependencies ++= Seq(
         library.akkaAlpakkaCsv,
         library.akkaHttpTestKit % Test,
@@ -39,8 +35,8 @@ lazy val library =
       val attoCore = "0.7.1"
       val scalaCheck = "1.14.1"
       val scalaTest  = "3.0.8"
-      val libAts     = "0.4.0-8-g8c1c7f3"
-      val libTuf = "0.7.1-16-g4a20341"
+      val libAts     = "0.4.0-21-g0e8d408"
+      val libTuf = "0.7.3-11-g4e7ccc6"
       val akka = "2.6.5"
       val akkaHttp = "10.1.12"
       val alpakkaCsv = "2.0.0"
@@ -55,7 +51,6 @@ lazy val library =
       "libats-messaging",
       "libats-messaging-datatype",
       "libats-slick",
-      "libats-auth",
       "libats-http",
       "libats-metrics",
       "libats-metrics-akka",
@@ -63,8 +58,8 @@ lazy val library =
       "libats-metrics-kafka",
       "libats-http-tracing",
       "libats-logging"
-    ).map("com.advancedtelematic" %% _ % Version.libAts)
-    val libTuf = "com.advancedtelematic" %% "libtuf-server" % Version.libTuf
+    ).map("io.github.uptane" %% _ % Version.libAts)
+    val libTuf = "io.github.uptane" %% "libtuf-server" % Version.libTuf
     val akkaHttpTestKit = "com.typesafe.akka" %% "akka-http-testkit" % Version.akkaHttp
     val akkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-testkit" % Version.akka
     val akkaAlpakkaCsv = "com.lightbend.akka" %% "akka-stream-alpakka-csv" % Version.alpakkaCsv
@@ -91,10 +86,12 @@ sonarSettings
 lazy val commonSettings =
   Seq(
     scalaVersion := "2.12.10",
-    organization := "com.advancedtelematic",
+    organization := "io.github.uptane",
     organizationName := "ATS Advanced Telematic Systems GmbH",
     name := "device-registry",
     startYear := Some(2017),
+    resolvers += Resolver.sonatypeRepo("releases"),
+    resolvers += Resolver.sonatypeRepo("snaphots"),
     licenses += ("MPL-2.0", url("http://mozilla.org/MPL/2.0/")),
     scalacOptions ++= Seq(
       "-Ypartial-unification",
