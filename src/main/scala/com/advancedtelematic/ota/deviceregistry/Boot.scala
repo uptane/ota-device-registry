@@ -12,7 +12,6 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import akka.http.scaladsl.settings.{ParserSettings, ServerSettings}
-import com.advancedtelematic.libats.auth.NamespaceDirectives
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http._
 import com.advancedtelematic.libats.http.tracing.Tracing
@@ -24,6 +23,8 @@ import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
 import com.advancedtelematic.ota.deviceregistry.db.DeviceRepository
 import com.advancedtelematic.ota.deviceregistry.http.`application/toml`
+
+
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.Future
