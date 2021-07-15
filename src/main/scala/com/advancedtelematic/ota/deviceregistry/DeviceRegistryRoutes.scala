@@ -2,8 +2,9 @@ package com.advancedtelematic.ota.deviceregistry
 import akka.actor.ActorSystem
 import akka.http.scaladsl.server.{Directive1, Directives, Route}
 import akka.stream.Materializer
+
 import cats.Eval
-import com.advancedtelematic.libats.auth.AuthedNamespaceScope
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
@@ -17,7 +18,7 @@ import slick.jdbc.MySQLProfile.api._
   * Base API routing class.
   */
 class DeviceRegistryRoutes(
-    namespaceExtractor: Directive1[AuthedNamespaceScope],
+    namespaceExtractor: Directive1[Namespace],
     deviceNamespaceAuthorizer: Directive1[DeviceId],
     messageBus: MessageBusPublisher
 )(implicit db: Database, system: ActorSystem, mat: Materializer, exec: ExecutionContext, monitoringDB: Eval[DeviceMonitoringDB])

@@ -12,9 +12,8 @@ package com.advancedtelematic.ota.deviceregistry
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import cats.Eval
-import com.advancedtelematic.libats.auth.NamespaceDirectives
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.http.ServiceHttpClientSupport
+import com.advancedtelematic.libats.http.{NamespaceDirectives, ServiceHttpClientSupport}
 import com.advancedtelematic.libats.http.tracing.NullServerRequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
