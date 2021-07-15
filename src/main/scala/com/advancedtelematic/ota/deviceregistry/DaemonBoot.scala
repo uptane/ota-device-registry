@@ -5,12 +5,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
+import com.advancedtelematic.libats.messaging.metrics.MonitoredBusListenerSupport
 import com.advancedtelematic.libats.messaging.{MessageBus, MessageListenerSupport}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeleteDeviceRequest, DeviceEventMessage, DeviceSeen, DeviceUpdateEvent, EcuReplacement}
 import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.DbHealthResource
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
-import com.advancedtelematic.metrics.{MetricsSupport, MonitoredBusListenerSupport}
+import com.advancedtelematic.metrics.MetricsSupport
 import com.advancedtelematic.ota.deviceregistry.daemon.{DeleteDeviceListener, DeviceEventListener, DeviceSeenListener, DeviceUpdateEventListener, EcuReplacementListener}
 
 object DaemonBoot extends BootApp
@@ -42,5 +43,5 @@ object DaemonBoot extends BootApp
   val host = config.getString("server.host")
   val port = config.getInt("server.port")
 
-  Http().bindAndHandle(routes, host, port)
+  Http().newServerAt(host, port).bindFlow(routes)
 }

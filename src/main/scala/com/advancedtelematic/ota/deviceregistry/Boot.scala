@@ -94,7 +94,7 @@ object Boot extends BootApp
   val parserSettings = ParserSettings(system).withCustomMediaTypes(`application/toml`.mediaType)
   val serverSettings = ServerSettings(system).withParserSettings(parserSettings)
 
-  Http().bindAndHandle(withConnectionMetrics(routes, metricRegistry), host, port, settings = serverSettings)
+  Http().newServerAt(host, port).withSettings(serverSettings).bindFlow(withConnectionMetrics(routes, metricRegistry))
 
   log.info(s"device registry started at http://$host:$port/")
 

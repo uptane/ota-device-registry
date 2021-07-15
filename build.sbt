@@ -15,11 +15,10 @@ lazy val `ota-device-registry` =
         library.akkaStreamTestKit % Test,
         library.attoCore,
         library.circeTesting % Test,
-        library.kafkaClient,
         library.libTuf,
         library.mariaDb,
         library.postgresqlJdbc,
-        library.scalaCheck % Test,
+//        library.scalaCheck % Test,
         library.scalaTest  % Test,
         library.toml,
       )
@@ -30,23 +29,25 @@ lazy val `ota-device-registry` =
 // Library dependencies
 // *****************************************************************************
 
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "3.2.9.0" % "test"
+
 lazy val library =
   new {
     object Version {
       val attoCore = "0.7.1"
-      val scalaCheck = "1.14.1"
-      val scalaTest  = "3.0.8"
-      val libAts     = "0.4.0-21-g0e8d408"
+      val scalaCheck = "1.15.3"
+      val scalaTest  = "3.2.9"
+      val libAts     = "0.4.0-32-g4cbf873"
       val libTuf = "0.7.3-11-g4e7ccc6"
-      val akka = "2.6.5"
-      val akkaHttp = "10.1.12"
+      val akka = "2.6.15"
+      val akkaHttp = "10.2.4"
       val alpakkaCsv = "2.0.0"
       val mariaDb = "2.4.4"
-      val circe = "0.12.3"
-      val kafkaClient = "2.1.1"
+      val circe = "0.14.1"
       val toml = "0.2.2"
     }
-    val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
+//    val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
+
     val scalaTest  = "org.scalatest"  %% "scalatest"  % Version.scalaTest
     val libAts = Seq(
       "libats-messaging",
@@ -56,7 +57,6 @@ lazy val library =
       "libats-metrics",
       "libats-metrics-akka",
       "libats-metrics-prometheus",
-      "libats-metrics-kafka",
       "libats-http-tracing",
       "libats-logging"
     ).map("io.github.uptane" %% _ % Version.libAts)
@@ -68,7 +68,6 @@ lazy val library =
     val mariaDb = "org.mariadb.jdbc" % "mariadb-java-client" % Version.mariaDb
     val circeTesting = "io.circe" %% "circe-testing" % Version.circe
     val akkaSlf4J = "com.typesafe.akka" %% "akka-slf4j" % Version.akka
-    val kafkaClient = "org.apache.kafka" % "kafka-clients" % Version.kafkaClient
     val toml = "tech.sparse" %% "toml-scala" % Version.toml
     val attoCore = "org.tpolecat" %% "atto-core" % Version.attoCore
   }
@@ -93,7 +92,7 @@ lazy val commonSettings =
     name := "device-registry",
     startYear := Some(2017),
     resolvers += Resolver.sonatypeRepo("releases"),
-    resolvers += Resolver.sonatypeRepo("snaphots"),
+    resolvers += "sonatype-snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots",
     licenses += ("MPL-2.0", url("http://mozilla.org/MPL/2.0/")),
     scalacOptions ++= Seq(
       "-Ypartial-unification",

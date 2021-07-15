@@ -10,13 +10,13 @@ import com.advancedtelematic.ota.deviceregistry.{NooDeviceMonitoringResource, Re
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import org.scalatest.EitherValues._
-import org.scalatest.FunSuite
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import slick.jdbc.GetResult
 import slick.jdbc.PostgresProfile.api._
+import org.scalatest.funsuite.AnyFunSuite
 
-class DeviceMonitoringResourceSpec extends FunSuite with ResourceSpec with ScalaFutures with DeviceGenerators {
+class DeviceMonitoringResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures with DeviceGenerators {
   import com.advancedtelematic.ota.deviceregistry.data.GeneratorOps._
 
   override implicit def patienceConfig: PatienceConfig = super.patienceConfig.copy(timeout = Span(3, Seconds))
