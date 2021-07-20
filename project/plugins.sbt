@@ -11,4 +11,4 @@ addSbtPlugin("com.github.mwz" % "sbt-sonar" % "2.1.1")
 
 libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.25" // Needed by sbt-git
 
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.18-1")
+addSbtPlugin("ch.epfl.scala" % "sbt-bloop" % "1.4.8")

@@ -28,9 +28,7 @@ object GroupExpression {
       Left(ValidationError("The expression is too small or too big."))
     else
       GroupExpressionParser.parse(s).fold(
-        e =>{
-          println(s"${s} ==========> ${e}");
-          Left(ValidationError(e.desc))},
+        e =>{ Left(ValidationError(e.desc))},
         _ => Right(new GroupExpression(s))
       )
 

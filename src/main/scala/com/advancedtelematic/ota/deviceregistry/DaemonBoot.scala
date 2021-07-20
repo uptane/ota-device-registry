@@ -24,24 +24,26 @@ object DaemonBoot extends BootApp
   with PrometheusMetricsSupport
   with VersionInfo {
 
-  implicit val _db = db
-
   lazy val messageBus = MessageBus.publisher(system, config)
 
-  log.info("Starting daemon service")
+  def main(args: Array[String]): Unit = {
+    implicit val _db = db
 
-  startMonitoredListener[DeviceSeen](new DeviceSeenListener(messageBus))
-  startMonitoredListener[DeviceEventMessage](new DeviceEventListener)
-  startMonitoredListener[DeleteDeviceRequest](new DeleteDeviceListener)
-  startMonitoredListener[DeviceUpdateEvent](new DeviceUpdateEventListener(messageBus))
-  startMonitoredListener[EcuReplacement](new EcuReplacementListener)
+    log.info("Starting daemon service")
 
-  val routes: Route = versionHeaders(version) {
-    DbHealthResource(versionMap).route
-  } ~ prometheusMetricsRoutes
+    startMonitoredListener[DeviceSeen](new DeviceSeenListener(messageBus))
+    startMonitoredListener[DeviceEventMessage](new DeviceEventListener)
+    startMonitoredListener[DeleteDeviceRequest](new DeleteDeviceListener)
+    startMonitoredListener[DeviceUpdateEvent](new DeviceUpdateEventListener(messageBus))
+    startMonitoredListener[EcuReplacement](new EcuReplacementListener)
 
-  val host = config.getString("server.host")
-  val port = config.getInt("server.port")
+    val routes: Route = versionHeaders(version) {
+      DbHealthResource(versionMap).route
+    } ~ prometheusMetricsRoutes
 
-  Http().newServerAt(host, port).bindFlow(routes)
+    val host = config.getString("server.host")
+    val port = config.getInt("server.port")
+
+    Http().newServerAt(host, port).bindFlow(routes)
+  }
 }

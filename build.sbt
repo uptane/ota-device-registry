@@ -17,8 +17,6 @@ lazy val `ota-device-registry` =
         library.circeTesting % Test,
         library.libTuf,
         library.mariaDb,
-        library.postgresqlJdbc,
-//        library.scalaCheck % Test,
         library.scalaTest  % Test,
         library.toml,
       )
@@ -35,7 +33,6 @@ lazy val library =
   new {
     object Version {
       val attoCore = "0.7.1"
-      val scalaCheck = "1.15.3"
       val scalaTest  = "3.2.9"
       val libAts     = "0.4.0-32-g4cbf873"
       val libTuf = "0.7.3-11-g4e7ccc6"
@@ -46,7 +43,6 @@ lazy val library =
       val circe = "0.14.1"
       val toml = "0.2.2"
     }
-//    val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
 
     val scalaTest  = "org.scalatest"  %% "scalatest"  % Version.scalaTest
     val libAts = Seq(
@@ -64,7 +60,6 @@ lazy val library =
     val akkaHttpTestKit = "com.typesafe.akka" %% "akka-http-testkit" % Version.akkaHttp
     val akkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-testkit" % Version.akka
     val akkaAlpakkaCsv = "com.lightbend.akka" %% "akka-stream-alpakka-csv" % Version.alpakkaCsv
-    val postgresqlJdbc = "org.postgresql" % "postgresql" % "42.2.22"
     val mariaDb = "org.mariadb.jdbc" % "mariadb-java-client" % Version.mariaDb
     val circeTesting = "io.circe" %% "circe-testing" % Version.circe
     val akkaSlf4J = "com.typesafe.akka" %% "akka-slf4j" % Version.akka

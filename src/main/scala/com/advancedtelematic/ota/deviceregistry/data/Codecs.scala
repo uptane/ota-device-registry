@@ -1,9 +1,9 @@
 package com.advancedtelematic.ota.deviceregistry.data
 
 import com.advancedtelematic.libats.data.DataType.ResultCode
-import io.circe.{Decoder, Encoder}
+import io.circe.{Codec, Decoder, Encoder}
 import com.advancedtelematic.ota.deviceregistry.data.DataType._
-import com.advancedtelematic.libats.codecs.CirceAts._
+import com.advancedtelematic.libats.codecs.CirceAts.{namespaceDecoder, namespaceEncoder}
 
 object Codecs {
 
