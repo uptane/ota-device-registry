@@ -78,7 +78,7 @@ object Boot extends BootApp
     val host = config.getString("server.host")
     val port = config.getInt("server.port")
 
-    val parserSettings = ParserSettings(system).withCustomMediaTypes(`application/toml`.mediaType)
+    val parserSettings = ParserSettings.forServer(system).withCustomMediaTypes(`application/toml`.mediaType)
     val serverSettings = ServerSettings(system).withParserSettings(parserSettings)
 
 
