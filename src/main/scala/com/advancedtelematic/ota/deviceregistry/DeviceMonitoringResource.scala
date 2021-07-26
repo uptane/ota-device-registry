@@ -3,22 +3,33 @@ package com.advancedtelematic.ota.deviceregistry
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directive1, Route}
-import com.advancedtelematic.libats.auth.AuthedNamespaceScope
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType
-import com.advancedtelematic.ota.deviceregistry.device_monitoring.{DeviceMonitoring, DeviceMonitoringDB}
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceMetricsObservation
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import io.circe.Json
-import cats.syntax.either._
+import io.circe.{Decoder, Json}
 import org.slf4j.LoggerFactory
 
+import java.time.Instant
 
-class DeviceMonitoringResource(namespaceExtractor: Directive1[AuthedNamespaceScope],
-                               deviceNamespaceAuthorizer: Directive1[DataType.DeviceId])(implicit monitoringDB: DeviceMonitoringDB, system: ActorSystem) {
+protected case class DeviceObservationRequest(observedAt: Instant, payload: Json)
+
+protected object DeviceObservationRequest {
+  implicit val deviceObservationRequestDecoder = Decoder.instance { cursor =>
+    for {
+      observedAt <- cursor.get[Double]("date").map { epoch => Instant.ofEpochMilli((epoch * 1000).longValue()) } // Losing some precision here
+      payload <- cursor.as[Json]
+    } yield DeviceObservationRequest(observedAt, payload)
+  }
+}
+
+class DeviceMonitoringResource(namespaceExtractor: Directive1[Namespace],
+                               deviceNamespaceAuthorizer: Directive1[DataType.DeviceId],
+                               messageBus: MessageBusPublisher
+                              )(implicit system: ActorSystem) {
   import akka.http.scaladsl.server.Directives._
-
   import system.dispatcher
-
-  val deviceMonitoring = new DeviceMonitoring
 
   private lazy val log = LoggerFactory.getLogger(this.getClass)
 
@@ -26,29 +37,15 @@ class DeviceMonitoringResource(namespaceExtractor: Directive1[AuthedNamespaceSco
     (pathPrefix("devices") & namespaceExtractor) { ns =>
       deviceNamespaceAuthorizer { uuid =>
         path("monitoring") {
-          (post & entity(as[Json])) { payload =>
-            log.debug("device observation from client: {}", payload.noSpaces)
+          (post & entity(as[DeviceObservationRequest])) { req =>
+            log.debug("device observation from client: {}", req.payload.noSpaces)
 
-            val parsed = deviceMonitoring.parse(ns.namespace, uuid, payload).valueOr(throw _)
-            val f = deviceMonitoring.persist(parsed, payload).map(_ => StatusCodes.NoContent)
+            val msg = DeviceMetricsObservation(ns, uuid, req.payload, Instant.now())
+            val f = messageBus.publish(msg).map(_ => StatusCodes.NoContent)
+
             complete(f)
           }
         }
       }
     }
-}
-
-class NooDeviceMonitoringResource(deviceNamespaceAuthorizer: Directive1[DataType.DeviceId]) {
-  import akka.http.scaladsl.server.Directives._
-
-  val route: Route = {
-    (pathPrefix("devices") & extractLog) { log =>
-      deviceNamespaceAuthorizer { uuid =>
-        path("monitoring") {
-          log.warning(s"Device $uuid is posting device metrics but this server has device metrics disabled")
-          complete(StatusCodes.NoContent)
-        }
-      }
-    }
-  }
 }

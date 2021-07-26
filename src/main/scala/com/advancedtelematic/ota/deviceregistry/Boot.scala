@@ -12,8 +12,6 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import akka.http.scaladsl.settings.{ParserSettings, ServerSettings}
-import cats.Eval
-import com.advancedtelematic.libats.auth.NamespaceDirectives
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http._
 import com.advancedtelematic.libats.http.tracing.Tracing
@@ -24,14 +22,11 @@ import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthR
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
 import com.advancedtelematic.ota.deviceregistry.db.DeviceRepository
-import com.advancedtelematic.ota.deviceregistry.device_monitoring.DeviceMonitoringDB
 import com.advancedtelematic.ota.deviceregistry.http.`application/toml`
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.Future
 import scala.util.Try
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 
 trait Settings {
   private lazy val _config = ConfigFactory.load()
@@ -58,46 +53,42 @@ object Boot extends BootApp
 
   import VersionDirectives._
 
-  implicit val _db = db
+  lazy val authNamespace = NamespaceDirectives.fromConfig()
 
-  val authNamespace = NamespaceDirectives.fromConfig()
-
-  private val namespaceAuthorizer = AllowUUIDPath.deviceUUID(authNamespace, deviceAllowed)
+  private lazy val namespaceAuthorizer = AllowUUIDPath.deviceUUID(authNamespace, deviceAllowed)
 
   private def deviceAllowed(deviceId: DeviceId): Future[Namespace] =
     db.run(DeviceRepository.deviceNamespace(deviceId))
 
-  lazy val messageBus = MessageBus.publisher(system, config)
+  def main(args: Array[String]): Unit = {
+    implicit val _db = db
 
-  val tracing = Tracing.fromConfig(config, projectName)
+    lazy val messageBus = MessageBus.publisher(system, config)
 
-  implicit val monitoringDB = Eval.later(DeviceMonitoringDB.fromConfig())
+    val tracing = Tracing.fromConfig(config, projectName)
 
-  if(deviceMonitoringEnabled) {
-    log.info("device monitoring is enabled, saving metrics to " + deviceMonitoringDbUrl)
-    Await.result(monitoringDB.value.migrate(), Duration.Inf)
-  }
+    val routes: Route =
+      (LogDirectives.logResponseMetrics("device-registry") & requestMetrics(metricRegistry) & versionHeaders(version)) {
+        prometheusMetricsRoutes ~
+          tracing.traceRequests { implicit serverRequestTracing =>
+            new DeviceRegistryRoutes(authNamespace, namespaceAuthorizer, messageBus).route
+          }
+      } ~ DbHealthResource(versionMap, healthMetrics = Seq(new BusListenerMetrics(metricRegistry))).route
 
-  val routes: Route =
-  (LogDirectives.logResponseMetrics("device-registry") & requestMetrics(metricRegistry) & versionHeaders(version)) {
-    prometheusMetricsRoutes ~
-      tracing.traceRequests { implicit serverRequestTracing =>
-        new DeviceRegistryRoutes(authNamespace, namespaceAuthorizer, messageBus).route
-      }
-  } ~ DbHealthResource(versionMap, healthMetrics = Seq(new BusListenerMetrics(metricRegistry))).route
+    val host = config.getString("server.host")
+    val port = config.getInt("server.port")
 
-  val host = config.getString("server.host")
-  val port = config.getInt("server.port")
+    val parserSettings = ParserSettings.forServer(system).withCustomMediaTypes(`application/toml`.mediaType)
+    val serverSettings = ServerSettings(system).withParserSettings(parserSettings)
 
-  val parserSettings = ParserSettings(system).withCustomMediaTypes(`application/toml`.mediaType)
-  val serverSettings = ServerSettings(system).withParserSettings(parserSettings)
 
-  Http().bindAndHandle(withConnectionMetrics(routes, metricRegistry), host, port, settings = serverSettings)
+    Http().newServerAt(host, port).withSettings(serverSettings).bindFlow(withConnectionMetrics(routes, metricRegistry))
 
-  log.info(s"device registry started at http://$host:$port/")
+    log.info(s"device registry started at http://$host:$port/")
 
-  sys.addShutdownHook {
-    Try(db.close())
-    Try(system.terminate())
+    sys.addShutdownHook {
+      Try(db.close())
+      Try(system.terminate())
+    }
   }
 }

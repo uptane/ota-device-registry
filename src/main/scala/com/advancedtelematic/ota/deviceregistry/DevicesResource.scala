@@ -21,7 +21,6 @@ import akka.stream.scaladsl.{Sink, Source}
 import akka.util.ByteString
 import cats.syntax.either._
 import cats.syntax.show._
-import com.advancedtelematic.libats.auth.{AuthedNamespaceScope, Scopes}
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace, ResultCode}
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.http.ValidatedGenericMarshalling.validatedStringUnmarshaller
@@ -61,7 +60,7 @@ object DevicesResource {
     io.circe.Decoder.instance { c =>
       for {
         id         <- c.get[String]("id")
-        deviceTime <- c.get[Instant]("deviceTime")(io.circe.java8.time.decodeInstant)
+        deviceTime <- c.get[Instant]("deviceTime")(io.circe.Decoder.decodeInstant)
         eventType  <- c.get[EventType]("eventType")
         payload    <- c.get[Json]("event")
       } yield
@@ -94,11 +93,11 @@ object DevicesResource {
     }
   }
 
-  val tagIdMatcher: PathMatcher1[TagId] = Segment.flatMap(TagId(_).toOption)
+  val tagIdMatcher: PathMatcher1[TagId] = Segment.flatMap(TagId.from(_).toOption)
 }
 
 class DevicesResource(
-    namespaceExtractor: Directive1[AuthedNamespaceScope],
+    namespaceExtractor: Directive1[Namespace],
     messageBus: MessageBusPublisher,
     deviceNamespaceAuthorizer: Directive1[DeviceId]
 )(implicit system: ActorSystem, db: Database, mat: Materializer, ec: ExecutionContext) {
@@ -115,7 +114,7 @@ class DevicesResource(
   val eventJournal = new EventJournal()
 
   def searchDevice(ns: Namespace): Route =
-    parameters((
+    parameters(
       'deviceId.as[DeviceOemId].?,
       'grouped.as[Boolean].?,
       'groupType.as[GroupType].?,
@@ -124,7 +123,7 @@ class DevicesResource(
       'notSeenSinceHours.as[Int].?,
       'sortBy.as[SortBy].?,
       'offset.as(nonNegativeLong).?,
-      'limit.as(nonNegativeLong).?)).as(SearchParams.apply _) { params =>
+      'limit.as(nonNegativeLong).?).as(SearchParams.apply _) { params =>
         entity(as[DeviceUuids]) { p =>
           complete(db.run(DeviceRepository.search(ns, params, p.deviceUuids)))
         } ~
@@ -163,7 +162,7 @@ class DevicesResource(
     complete(db.run(DeviceRepository.countDevicesForExpression(ns, expression)))
 
   def getGroupsForDevice(uuid: DeviceId): Route =
-    parameters(('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?)) { (offset, limit) =>
+    parameters('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?) { (offset, limit) =>
       complete(db.run(GroupMemberRepository.listGroupsForDevice(uuid, offset, limit)))
     }
 
@@ -177,7 +176,7 @@ class DevicesResource(
     complete(db.run(InstalledPackages.getDevicesCount(pkg, ns)))
 
   def listPackagesOnDevice(device: DeviceId): Route =
-    parameters(('nameContains.as[String].?, 'offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?)) { (nameContains, offset, limit) =>
+    parameters('nameContains.as[String].?, 'offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?) { (nameContains, offset, limit) =>
       complete(db.run(InstalledPackages.installedOn(device, nameContains, offset, limit)))
     }
 
@@ -185,7 +184,7 @@ class DevicesResource(
     Unmarshaller.strict(OffsetDateTime.parse)
 
   def getActiveDeviceCount(ns: Namespace): Route =
-    parameters(('start.as[OffsetDateTime], 'end.as[OffsetDateTime])) { (start, end) =>
+    parameters('start.as[OffsetDateTime], 'end.as[OffsetDateTime]) { (start, end) =>
       complete(
         db.run(DeviceRepository.countActivatedDevices(ns, start.toInstant, end.toInstant))
           .map(ActiveDeviceCount.apply)
@@ -283,25 +282,24 @@ class DevicesResource(
   }
 
   def api: Route = namespaceExtractor { ns =>
-    val scope = Scopes.devices(ns)
     pathPrefix("devices") {
-      (scope.post & entity(as[DeviceT]) & pathEnd) { device =>
-        createDevice(ns.namespace, device)
+      (post & entity(as[DeviceT]) & pathEnd) { device =>
+        createDevice(ns, device)
       } ~
-      scope.get {
+      get {
         (path("count") & parameter('expression.as[GroupExpression].?)) {
           case None      => complete(Errors.InvalidGroupExpression(""))
-          case Some(exp) => countDynamicGroupCandidates(ns.namespace, exp)
+          case Some(exp) => countDynamicGroupCandidates(ns, exp)
         } ~
         (path("stats") & parameters('correlationId.as[CorrelationId], 'reportLevel.as[InstallationStatsLevel].?)) {
           (cid, reportLevel) => fetchInstallationStats(cid, reportLevel)
         } ~
         pathEnd {
-          searchDevice(ns.namespace)
+          searchDevice(ns)
         }
       } ~
       deviceNamespaceAuthorizer { uuid =>
-        scope.get {
+        get {
           path("groups") {
             getGroupsForDevice(uuid)
           } ~
@@ -309,7 +307,7 @@ class DevicesResource(
             listPackagesOnDevice(uuid)
           } ~
           path("active_device_count") {
-            getActiveDeviceCount(ns.namespace)
+            getActiveDeviceCount(ns)
           } ~
           (path("installation_reports") & parameters('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?)) {
             (offset, limit) => installationReports(uuid, offset, limit)
@@ -318,7 +316,7 @@ class DevicesResource(
             (offset, limit) => fetchInstallationHistory(uuid, offset, limit)
           } ~
           (pathPrefix("device_count") & extractPackageId) { pkg =>
-            getDevicesCount(pkg, ns.namespace)
+            getDevicesCount(pkg, ns)
           } ~
           path("device_tags") {
             fetchDeviceTags(uuid)
@@ -327,14 +325,14 @@ class DevicesResource(
             fetchDevice(uuid)
           }
         } ~
-        (scope.put & pathEnd & entity(as[UpdateDevice])) { updateBody =>
-          updateDevice(ns.namespace, uuid, updateBody)
+        (put & pathEnd & entity(as[UpdateDevice])) { updateBody =>
+          updateDevice(ns, uuid, updateBody)
         } ~
-        (scope.patch & path("device_tags") & entity(as[UpdateTagValue])) { utv =>
-          patchDeviceTagValue(ns.namespace, uuid, utv.tagId, utv.tagValue)
+        (patch & path("device_tags") & entity(as[UpdateTagValue])) { utv =>
+          patchDeviceTagValue(ns, uuid, utv.tagId, utv.tagValue)
         } ~
-        (scope.delete & pathEnd) {
-          deleteDevice(ns.namespace, uuid)
+        (delete & pathEnd) {
+          deleteDevice(ns, uuid)
         } ~
         path("events") {
           import DevicesResource.EventPayloadDecoder
@@ -350,7 +348,7 @@ class DevicesResource(
               entity(as[List[EventPayload]]) { xs =>
                 val timestamp = Instant.now()
                 val recordingResult: List[Future[Unit]] =
-                  xs.map(_.apply(uuid, timestamp)).map(x => messageBus.publish(DeviceEventMessage(ns.namespace, x)))
+                  xs.map(_.apply(uuid, timestamp)).map(x => messageBus.publish(DeviceEventMessage(ns, x)))
                 onComplete(Future.sequence(recordingResult)) {
                   case scala.util.Success(_) =>
                     complete(StatusCodes.NoContent)
@@ -366,52 +364,51 @@ class DevicesResource(
       }
     } ~
     pathPrefix("device_tags") {
-      (scope.put & path(tagIdMatcher) & entity(as[RenameTagId])) { (tagId, body) =>
-        renameDeviceTag(ns.namespace, tagId, body.tagId)
+      (put & path(tagIdMatcher) & entity(as[RenameTagId])) { (tagId, body) =>
+        renameDeviceTag(ns, tagId, body.tagId)
       } ~
-      (scope.delete & path(tagIdMatcher)) { tagId =>
-        deleteDeviceTag(ns.namespace, tagId)
+      (delete & path(tagIdMatcher)) { tagId =>
+        deleteDeviceTag(ns, tagId)
       } ~
       pathEnd {
-        scope.get {
-          fetchDeviceTags(ns.namespace)
+        get {
+          fetchDeviceTags(ns)
         } ~
         // TODO use extractRequestEntity instead of fileUpload
-        (scope.post & fileUpload("custom-device-fields")) { case (_, byteSource) =>
-          tagDevicesFromCsv(ns.namespace, byteSource)
+        (post & fileUpload("custom-device-fields")) { case (_, byteSource) =>
+          tagDevicesFromCsv(ns, byteSource)
         }
       }
     } ~
-    (scope.get & pathPrefix("device_count") & extractPackageId) { pkg =>
-      getDevicesCount(pkg, ns.namespace)
+    (get & pathPrefix("device_count") & extractPackageId) { pkg =>
+      getDevicesCount(pkg, ns)
     } ~
-    (scope.get & path("active_device_count")) {
-      getActiveDeviceCount(ns.namespace)
+    (get & path("active_device_count")) {
+      getActiveDeviceCount(ns)
     }
   }
 
   def mydeviceRoutes: Route = namespaceExtractor { authedNs => // Don't use this as a namespace
     pathPrefix("mydevice" / DeviceId.Path) { uuid =>
-      (get & pathEnd & authedNs.oauthScopeReadonly(s"ota-core.${uuid.show}.read")) {
+      (get & pathEnd) {
         fetchDevice(uuid)
       } ~
-      (put & path("packages") & authedNs.oauthScope(s"ota-core.${uuid.show}.write")) {
+      (put & path("packages")) {
         updateInstalledSoftware(uuid)
       }
     }
   }
 
-  val devicePackagesRoutes: Route = namespaceExtractor { authedNs =>
-    val scope = Scopes.devices(authedNs)
+  val devicePackagesRoutes: Route = namespaceExtractor { ns =>
     pathPrefix("device_packages") {
-      (pathEnd & scope.get) {
-        getDistinctPackages(authedNs.namespace)
+      (pathEnd & get) {
+        getDistinctPackages(ns)
       } ~
-      (path(Segment) & scope.get) { name =>
-        getPackageStats(authedNs.namespace, name)
+      (path(Segment) & get) { name =>
+        getPackageStats(ns, name)
       } ~
-      (path("affected") & scope.post) {
-        findAffected(authedNs.namespace)
+      (path("affected") & post) {
+        findAffected(ns)
       }
     }
   }

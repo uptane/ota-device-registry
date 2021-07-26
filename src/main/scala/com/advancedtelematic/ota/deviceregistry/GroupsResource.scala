@@ -18,7 +18,6 @@ import akka.stream.scaladsl.Framing.FramingException
 import akka.stream.scaladsl.{Framing, Sink, Source}
 import akka.util.ByteString
 import cats.syntax.either._
-import com.advancedtelematic.libats.auth.{AuthedNamespaceScope, Scopes}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.ota.deviceregistry.common.Errors
@@ -35,7 +34,7 @@ import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class GroupsResource(namespaceExtractor: Directive1[AuthedNamespaceScope], deviceNamespaceAuthorizer: Directive1[DeviceId])
+class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceAuthorizer: Directive1[DeviceId])
                     (implicit ec: ExecutionContext, db: Database, materializer: Materializer) extends Directives {
 
   private val DEVICE_OEM_ID_MAX_BYTES = 128
@@ -60,7 +59,7 @@ class GroupsResource(namespaceExtractor: Directive1[AuthedNamespaceScope], devic
   val groupMembership = new GroupMembership()
 
   def getDevicesInGroup(groupId: GroupId): Route =
-    parameters(('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?)) { (offset, limit) =>
+    parameters('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?) { (offset, limit) =>
       complete(groupMembership.listDevices(groupId, offset, limit))
     }
 
@@ -122,42 +121,41 @@ class GroupsResource(namespaceExtractor: Directive1[AuthedNamespaceScope], devic
 
   val route: Route =
     (pathPrefix("device_groups") & namespaceExtractor) { ns =>
-      val scope = Scopes.devices(ns)
       pathEnd {
-        (scope.get & parameters(('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?, 'sortBy.as[SortBy].?, 'nameContains.as[String].?))) {
-          (offset, limit, sortBy, nameContains) => listGroups(ns.namespace, offset, limit, sortBy.getOrElse(SortBy.Name), nameContains)
+        (get & parameters('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?, 'sortBy.as[SortBy].?, 'nameContains.as[String].?)) {
+          (offset, limit, sortBy, nameContains) => listGroups(ns, offset, limit, sortBy.getOrElse(SortBy.Name), nameContains)
         } ~
-        scope.post {
+        post {
           entity(as[CreateGroup]) { req =>
-            createGroup(req.name, ns.namespace, req.groupType, req.expression)
+            createGroup(req.name, ns, req.groupType, req.expression)
           } ~
           (fileUpload("deviceIds") & parameter('groupName.as[GroupName])) {
             case ((_, byteSource), groupName) =>
-              createGroupWithDevices(groupName, ns.namespace, byteSource)
+              createGroupWithDevices(groupName, ns, byteSource)
           }
         }
       } ~
       GroupIdPath { groupId =>
-        (scope.get & pathEndOrSingleSlash) {
+        (get & pathEndOrSingleSlash) {
           getGroup(groupId)
         } ~
         pathPrefix("devices") {
-          scope.get {
+          get {
             getDevicesInGroup(groupId)
           } ~
           deviceNamespaceAuthorizer { deviceUuid =>
-            scope.post {
+            post {
               addDeviceToGroup(groupId, deviceUuid)
             } ~
-            scope.delete {
+            delete {
               removeDeviceFromGroup(groupId, deviceUuid)
             }
           }
         } ~
-        (scope.put & path("rename") & parameter('groupName.as[GroupName])) { groupName =>
+        (put & path("rename") & parameter('groupName.as[GroupName])) { groupName =>
           renameGroup(groupId, groupName)
         } ~
-        (scope.get & path("count") & pathEnd) {
+        (get & path("count") & pathEnd) {
           countDevices(groupId)
         }
       }

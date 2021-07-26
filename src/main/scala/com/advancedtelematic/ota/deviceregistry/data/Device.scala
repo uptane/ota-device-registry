@@ -10,14 +10,13 @@ package com.advancedtelematic.ota.deviceregistry.data
 
 import java.time.{Instant, OffsetDateTime}
 import java.util.UUID
-
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import cats.Show
 import cats.syntax.show._
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.ota.deviceregistry.data.Device.{DeviceOemId, DeviceType}
 import com.advancedtelematic.ota.deviceregistry.data.DeviceStatus._
-import io.circe.{Decoder, Encoder}
+import io.circe.{Codec, Decoder, Encoder}
 
 final case class Device(namespace: Namespace,
                         uuid: DeviceId,
@@ -33,6 +32,8 @@ object Device {
 
   final case class DeviceOemId(underlying: String) extends AnyVal
   implicit val showDeviceOemId: Show[DeviceOemId] = deviceId => deviceId.underlying
+
+  implicit val deviceOemIdCodec = io.circe.generic.semiauto.deriveCodec[Device.DeviceOemId]
 
   type DeviceType = DeviceType.DeviceType
 

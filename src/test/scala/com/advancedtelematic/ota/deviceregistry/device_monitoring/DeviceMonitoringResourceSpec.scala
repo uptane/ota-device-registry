@@ -1,25 +1,27 @@
 package com.advancedtelematic.ota.deviceregistry.device_monitoring
 
-import cats.syntax.either._
-import org.scalatest.LoneElement._
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.show._
+import com.advancedtelematic.libats.messaging.test.MockMessageBus
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceMetricsObservation
 import com.advancedtelematic.ota.deviceregistry.data.DeviceGenerators
-import com.advancedtelematic.ota.deviceregistry.{NooDeviceMonitoringResource, Resource, ResourceSpec}
+import com.advancedtelematic.ota.deviceregistry.{Resource, ResourceSpec}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import org.scalatest.EitherValues._
-import org.scalatest.FunSuite
+import org.scalatest.OptionValues._
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.time.{Seconds, Span}
-import slick.jdbc.GetResult
-import slick.jdbc.PostgresProfile.api._
 
-class DeviceMonitoringResourceSpec extends FunSuite with ResourceSpec with ScalaFutures with DeviceGenerators {
+class DeviceMonitoringResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures with DeviceGenerators {
+
   import com.advancedtelematic.ota.deviceregistry.data.GeneratorOps._
 
   override implicit def patienceConfig: PatienceConfig = super.patienceConfig.copy(timeout = Span(3, Seconds))
+
+  override lazy val messageBus = new MockMessageBus()
 
   val jsonPayload = io.circe.jawn.parse(
     """
@@ -76,17 +78,10 @@ class DeviceMonitoringResourceSpec extends FunSuite with ResourceSpec with Scala
       status shouldBe StatusCodes.NoContent
     }
 
-    val sql = sql"""SELECT cpu_p, docker_alive from device_observations where device_uuid = ${uuid.show}""".as[(Double, Boolean)]
+    val msg = messageBus.findReceived[DeviceMetricsObservation]((msg: DeviceMetricsObservation) => msg.uuid == uuid)
 
-    monitoringDB.value.db.run(sql).futureValue.loneElement shouldBe (0.1855555555555556, true)
-
-    implicit val getPayload = GetResult.apply { result =>
-      io.circe.jawn.parse(result.rs.getString("payload")).valueOr(throw _)
-    }
-
-    val sql0 = sql"""SELECT payload from device_raw_observations where device_uuid = ${uuid.show}""".as[Json]
-
-    monitoringDB.value.db.run(sql0).futureValue.loneElement shouldBe jsonPayload
+    msg.value.payload shouldBe jsonPayload
+    msg.value.namespace shouldBe defaultNs
   }
 
   test("responds with bad request if json is not a valid monitoring payload") {
@@ -95,22 +90,5 @@ class DeviceMonitoringResourceSpec extends FunSuite with ResourceSpec with Scala
     Post(Resource.uri("devices", uuid.show, "monitoring"), Json.obj()) ~> route ~> check {
       status shouldBe StatusCodes.BadRequest
     }
-  }
-
-  test("noop routes return 204") {
-    val uuid = createDeviceOk(genDeviceT.generate)
-
-    val noOpRoutes = new NooDeviceMonitoringResource(namespaceAuthorizer).route
-
-    Post(s"/devices/${uuid.show}/monitoring", jsonPayload) ~> noOpRoutes ~> check {
-      status shouldBe StatusCodes.NoContent
-    }
-  }
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    val dropSql = sql"DROP SCHEMA IF EXISTS device_monitoring cascade; create schema device_monitoring".asUpdate
-    monitoringDB.value.run(dropSql).futureValue
-    monitoringDB.value.migrate().futureValue
   }
 }

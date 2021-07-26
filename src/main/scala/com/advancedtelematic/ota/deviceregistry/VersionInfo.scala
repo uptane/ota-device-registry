@@ -8,7 +8,7 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
-import com.advancedtelematic.BuildInfo
+import io.github.uptane.BuildInfo
 
 trait VersionInfo {
   lazy val projectName: String = BuildInfo.name
