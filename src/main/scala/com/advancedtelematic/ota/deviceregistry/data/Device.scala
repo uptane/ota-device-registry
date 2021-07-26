@@ -33,8 +33,6 @@ object Device {
   final case class DeviceOemId(underlying: String) extends AnyVal
   implicit val showDeviceOemId: Show[DeviceOemId] = deviceId => deviceId.underlying
 
-  implicit val deviceOemIdCodec = io.circe.generic.semiauto.deriveCodec[Device.DeviceOemId]
-
   type DeviceType = DeviceType.DeviceType
 
   final object DeviceType extends Enumeration {
@@ -64,10 +62,12 @@ object Device {
 
   implicit val EncoderInstance = {
     import com.advancedtelematic.libats.codecs.CirceCodecs._
+    import Codecs.deviceOemIdEncoder
     io.circe.generic.semiauto.deriveEncoder[Device]
   }
   implicit val DecoderInstance = {
     import com.advancedtelematic.libats.codecs.CirceCodecs._
+    import Codecs.deviceOemIdDecoder
     io.circe.generic.semiauto.deriveDecoder[Device]
   }
 
