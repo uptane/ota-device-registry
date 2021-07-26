@@ -10,7 +10,6 @@ package com.advancedtelematic.ota.deviceregistry
 
 import java.time.temporal.ChronoUnit
 import java.time.{Instant, OffsetDateTime}
-
 import akka.http.scaladsl.model.StatusCodes._
 import cats.syntax.either._
 import cats.syntax.option._
@@ -27,6 +26,7 @@ import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.{Device, DeviceStatus, PackageId, _}
 import com.advancedtelematic.ota.deviceregistry.db.InstalledPackages.{DevicesCount, InstalledPackage}
 import com.advancedtelematic.ota.deviceregistry.db.{InstalledPackages, TaggedDeviceRepository}
+import io.circe.Json
 import io.circe.generic.auto._
 import org.scalacheck.Arbitrary._
 import org.scalacheck.{Gen, Shrink}
@@ -46,7 +46,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
   private val publisher     = new DeviceSeenListener(MessageBusPublisher.ignore)
 
   implicit override val patienceConfig =
-    PatienceConfig(timeout = Span(5, Seconds), interval = Span(15, Millis))
+    PatienceConfig(timeout = Span(10, Seconds), interval = Span(100, Millis))
 
   implicit def noShrink[T]: Shrink[T] = Shrink.shrinkAny
 
@@ -92,6 +92,45 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
       }
     }
   }
+
+  property("uses correct codec for device") {
+    import org.scalatest.EitherValues._
+    import org.scalatest.OptionValues._
+    import io.circe.syntax._
+
+    forAll { (dt1: DeviceT) =>
+      val d1 = createDeviceInNamespaceOk(dt1, defaultNs)
+
+      listDevices() ~> route ~> check {
+        status shouldBe OK
+        val devicesJson = responseAs[PaginationResult[Json]].values
+
+        val createdDevice = devicesJson.find { d =>
+          d.hcursor.downField("uuid").as[DeviceId].value == d1
+        }.value
+
+        val createdAt = devicesJson.head.hcursor.downField("createdAt").as[Instant].value
+
+        val expected =
+          s"""
+            |{
+            |  "namespace" : "default",
+            |  "uuid" : "${d1.uuid.toString}",
+            |  "deviceName" : "${dt1.deviceName.value}",
+            |  "deviceId" : "${dt1.deviceId.underlying}",
+            |  "deviceType" : "${dt1.deviceType.toString}",
+            |  "lastSeen" : null,
+            |  "createdAt" : ${createdAt.asJson.noSpaces},
+            |  "activatedAt" : null,
+            |  "deviceStatus" : "NotSeen"
+            |}
+            |""".stripMargin
+
+        createdDevice shouldBe io.circe.parser.parse(expected).value
+      }
+    }
+  }
+
 
   property("GET request (for Id) after POST yields same device") {
     forAll { devicePre: DeviceT =>

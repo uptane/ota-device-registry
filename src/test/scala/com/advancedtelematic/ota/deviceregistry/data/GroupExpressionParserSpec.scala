@@ -16,7 +16,7 @@ import org.scalatest.OptionValues._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Millis, Span}
+import org.scalatest.time.{Millis, Seconds, Span}
 import slick.jdbc.MySQLProfile.api._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -235,7 +235,7 @@ class GroupExpressionRunSpec extends AnyFunSuite with Matchers with DatabaseSpec
   val ns = Namespace("group-exp")
 
   import scala.concurrent.ExecutionContext.Implicits.global
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(300, Millis), interval = Span(30, Millis))
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(timeout = Span(3, Seconds), interval = Span(30, Millis))
 
   private implicit def stringToTagString(s: String): TagId =
     TagId.validatedTagId.from(s).valueOr(throw _)

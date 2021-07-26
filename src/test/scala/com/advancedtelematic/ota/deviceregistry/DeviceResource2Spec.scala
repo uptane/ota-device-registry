@@ -2,7 +2,6 @@ package com.advancedtelematic.ota.deviceregistry
 
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.libats.messaging_datatype.DataType.{Event, EventType}
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceEventMessage
@@ -19,6 +18,7 @@ import cats.syntax.either._
 import org.scalatest.OptionValues._
 import org.scalatest.EitherValues._
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.time.{Millis, Seconds, Span}
 
 
 class DeviceResource2Spec extends AnyFunSuite with ResourceSpec with Eventually with ScalaFutures with ArbitraryInstances {
@@ -26,6 +26,9 @@ class DeviceResource2Spec extends AnyFunSuite with ResourceSpec with Eventually 
   import io.circe.syntax._
 
   private val deviceEventListener = new DeviceEventListener()
+
+  implicit override val patienceConfig =
+    PatienceConfig(timeout = Span(5, Seconds), interval = Span(15, Millis))
 
   test("events includes events for a device") {
     val device = genDeviceT.retryUntil(_.uuid.isDefined).generate

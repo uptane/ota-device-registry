@@ -7,8 +7,8 @@ import com.advancedtelematic.libats.codecs.CirceAts.{namespaceDecoder, namespace
 
 object Codecs {
 
-  private implicit val deviceIdEncoder = Encoder.encodeString.contramap[Device.DeviceOemId](_.underlying)
-  private implicit val deviceIdDecoder = Decoder.decodeString.map(Device.DeviceOemId.apply)
+  implicit val deviceOemIdEncoder = Encoder.encodeString.contramap[Device.DeviceOemId](_.underlying)
+  implicit val deviceOemIdDecoder = Decoder.decodeString.map(Device.DeviceOemId.apply)
 
   implicit val deviceTEncoder = io.circe.generic.semiauto.deriveEncoder[DeviceT]
   implicit val deviceTDecoder = io.circe.generic.semiauto.deriveDecoder[DeviceT]
@@ -31,5 +31,5 @@ object Codecs {
 
   implicit val tagInfoCodec = io.circe.generic.semiauto.deriveCodec[TagInfo]
 
-  implicit val deviceIdsCodec = io.circe.generic.semiauto.deriveCodec[DeviceUuids]
+  implicit val deviceUuidsCodec = io.circe.generic.semiauto.deriveCodec[DeviceUuids]
 }
