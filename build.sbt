@@ -42,7 +42,7 @@ lazy val library =
       val alpakkaCsv = "2.0.0"
       val mariaDb = "2.4.4"
       val circe = "0.12.3"
-      val kafkaClient = "2.1.1"
+      val kafkaClient = "2.8.0"
       val toml = "0.2.2"
     }
     val scalaCheck = "org.scalacheck" %% "scalacheck" % Version.scalaCheck
