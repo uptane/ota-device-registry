@@ -41,7 +41,7 @@ lazy val library =
       val akkaHttp = "10.1.12"
       val alpakkaCsv = "2.0.0"
       val mariaDb = "2.4.4"
-      val circe = "0.12.3"
+      val circe = "0.14.1"
       val kafkaClient = "2.1.1"
       val toml = "0.2.2"
     }
