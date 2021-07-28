@@ -85,7 +85,7 @@ sonarSettings
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.12.10",
+    scalaVersion := "2.12.14",
     organization := "io.github.uptane",
     organizationName := "ATS Advanced Telematic Systems GmbH",
     name := "device-registry",
