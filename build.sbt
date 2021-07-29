@@ -32,7 +32,7 @@ lazy val `ota-device-registry` =
 lazy val library =
   new {
     object Version {
-      val attoCore = "0.7.1"
+      val attoCore = "0.7.2"
       val scalaCheck = "1.14.1"
       val scalaTest  = "3.0.8"
       val libAts     = "0.4.0-21-g0e8d408"
