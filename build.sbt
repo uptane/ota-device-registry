@@ -34,7 +34,7 @@ lazy val library =
     object Version {
       val attoCore = "0.7.2"
       val scalaTest  = "3.2.9"
-      val libAts     = "0.4.0-32-g4cbf873"
+      val libAts     = "0.4.0-40-g84a90d0"
       val libTuf = "0.7.3-11-g4e7ccc6"
       val akka = "2.6.15"
       val akkaHttp = "10.2.4"
