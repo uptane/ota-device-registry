@@ -93,7 +93,7 @@ object DevicesResource {
     }
   }
 
-  val tagIdMatcher: PathMatcher1[TagId] = Segment.flatMap(TagId(_).toOption)
+  val tagIdMatcher: PathMatcher1[TagId] = Segment.flatMap(TagId.from(_).toOption)
 }
 
 class DevicesResource(
@@ -114,7 +114,7 @@ class DevicesResource(
   val eventJournal = new EventJournal()
 
   def searchDevice(ns: Namespace): Route =
-    parameters((
+    parameters(
       'deviceId.as[DeviceOemId].?,
       'grouped.as[Boolean].?,
       'groupType.as[GroupType].?,
@@ -123,7 +123,7 @@ class DevicesResource(
       'notSeenSinceHours.as[Int].?,
       'sortBy.as[SortBy].?,
       'offset.as(nonNegativeLong).?,
-      'limit.as(nonNegativeLong).?)).as(SearchParams.apply _) { params =>
+      'limit.as(nonNegativeLong).?).as(SearchParams.apply _) { params =>
         entity(as[DeviceUuids]) { p =>
           complete(db.run(DeviceRepository.search(ns, params, p.deviceUuids)))
         } ~
@@ -162,7 +162,7 @@ class DevicesResource(
     complete(db.run(DeviceRepository.countDevicesForExpression(ns, expression)))
 
   def getGroupsForDevice(uuid: DeviceId): Route =
-    parameters(('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?)) { (offset, limit) =>
+    parameters('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?) { (offset, limit) =>
       complete(db.run(GroupMemberRepository.listGroupsForDevice(uuid, offset, limit)))
     }
 
@@ -176,7 +176,7 @@ class DevicesResource(
     complete(db.run(InstalledPackages.getDevicesCount(pkg, ns)))
 
   def listPackagesOnDevice(device: DeviceId): Route =
-    parameters(('nameContains.as[String].?, 'offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?)) { (nameContains, offset, limit) =>
+    parameters('nameContains.as[String].?, 'offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?) { (nameContains, offset, limit) =>
       complete(db.run(InstalledPackages.installedOn(device, nameContains, offset, limit)))
     }
 
@@ -184,7 +184,7 @@ class DevicesResource(
     Unmarshaller.strict(OffsetDateTime.parse)
 
   def getActiveDeviceCount(ns: Namespace): Route =
-    parameters(('start.as[OffsetDateTime], 'end.as[OffsetDateTime])) { (start, end) =>
+    parameters('start.as[OffsetDateTime], 'end.as[OffsetDateTime]) { (start, end) =>
       complete(
         db.run(DeviceRepository.countActivatedDevices(ns, start.toInstant, end.toInstant))
           .map(ActiveDeviceCount.apply)

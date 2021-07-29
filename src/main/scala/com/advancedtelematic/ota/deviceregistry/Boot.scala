@@ -23,8 +23,6 @@ import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
 import com.advancedtelematic.ota.deviceregistry.db.DeviceRepository
 import com.advancedtelematic.ota.deviceregistry.http.`application/toml`
-
-
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.Future
@@ -34,6 +32,10 @@ trait Settings {
   private lazy val _config = ConfigFactory.load()
 
   val directorUri = Uri(_config.getString("director.uri"))
+
+  lazy val deviceMonitoringEnabled = _config.getBoolean("device_monitoring.enabled")
+
+  lazy val deviceMonitoringDbUrl = _config.getString("device_monitoring.db.url")
 }
 
 object Boot extends BootApp
@@ -51,39 +53,42 @@ object Boot extends BootApp
 
   import VersionDirectives._
 
-  implicit val _db = db
+  lazy val authNamespace = NamespaceDirectives.fromConfig()
 
-  val authNamespace = NamespaceDirectives.fromConfig()
-
-  private val namespaceAuthorizer = AllowUUIDPath.deviceUUID(authNamespace, deviceAllowed)
+  private lazy val namespaceAuthorizer = AllowUUIDPath.deviceUUID(authNamespace, deviceAllowed)
 
   private def deviceAllowed(deviceId: DeviceId): Future[Namespace] =
     db.run(DeviceRepository.deviceNamespace(deviceId))
 
-  lazy val messageBus = MessageBus.publisher(system, config)
+  def main(args: Array[String]): Unit = {
+    implicit val _db = db
 
-  val tracing = Tracing.fromConfig(config, projectName)
+    lazy val messageBus = MessageBus.publisher(system, config)
 
-  val routes: Route =
-  (LogDirectives.logResponseMetrics("device-registry") & requestMetrics(metricRegistry) & versionHeaders(version)) {
-    prometheusMetricsRoutes ~
-      tracing.traceRequests { implicit serverRequestTracing =>
-        new DeviceRegistryRoutes(authNamespace, namespaceAuthorizer, messageBus).route
-      }
-  } ~ DbHealthResource(versionMap, healthMetrics = Seq(new BusListenerMetrics(metricRegistry))).route
+    val tracing = Tracing.fromConfig(config, projectName)
 
-  val host = config.getString("server.host")
-  val port = config.getInt("server.port")
+    val routes: Route =
+      (LogDirectives.logResponseMetrics("device-registry") & requestMetrics(metricRegistry) & versionHeaders(version)) {
+        prometheusMetricsRoutes ~
+          tracing.traceRequests { implicit serverRequestTracing =>
+            new DeviceRegistryRoutes(authNamespace, namespaceAuthorizer, messageBus).route
+          }
+      } ~ DbHealthResource(versionMap, healthMetrics = Seq(new BusListenerMetrics(metricRegistry))).route
 
-  val parserSettings = ParserSettings(system).withCustomMediaTypes(`application/toml`.mediaType)
-  val serverSettings = ServerSettings(system).withParserSettings(parserSettings)
+    val host = config.getString("server.host")
+    val port = config.getInt("server.port")
 
-  Http().bindAndHandle(withConnectionMetrics(routes, metricRegistry), host, port, settings = serverSettings)
+    val parserSettings = ParserSettings.forServer(system).withCustomMediaTypes(`application/toml`.mediaType)
+    val serverSettings = ServerSettings(system).withParserSettings(parserSettings)
 
-  log.info(s"device registry started at http://$host:$port/")
 
-  sys.addShutdownHook {
-    Try(db.close())
-    Try(system.terminate())
+    Http().newServerAt(host, port).withSettings(serverSettings).bindFlow(withConnectionMetrics(routes, metricRegistry))
+
+    log.info(s"device registry started at http://$host:$port/")
+
+    sys.addShutdownHook {
+      Try(db.close())
+      Try(system.terminate())
+    }
   }
 }

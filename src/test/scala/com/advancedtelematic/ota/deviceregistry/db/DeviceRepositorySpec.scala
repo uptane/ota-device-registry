@@ -9,9 +9,9 @@
 package com.advancedtelematic.ota.deviceregistry.db
 
 import java.time.Instant
-
-import com.advancedtelematic.libats.test.{DatabaseSpec, LongTest}
+import com.advancedtelematic.libats.test.LongTest
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
+import com.advancedtelematic.ota.deviceregistry.DatabaseSpec
 import com.advancedtelematic.ota.deviceregistry.data.DeviceGenerators.{genDeviceId, genDeviceT}
 import com.advancedtelematic.ota.deviceregistry.data.DataType.DeletedDevice
 import com.advancedtelematic.ota.deviceregistry.data.Namespaces
@@ -19,12 +19,13 @@ import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.LoneElement._
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{FunSuite, Matchers}
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
-class DeviceRepositorySpec extends FunSuite with DatabaseSpec with ScalaFutures with Matchers with LongTest {
+class DeviceRepositorySpec extends AnyFunSuite with DatabaseSpec with ScalaFutures with Matchers with LongTest {
 
   test("updateLastSeen sets activated_at the first time only") {
 
@@ -49,7 +50,7 @@ class DeviceRepositorySpec extends FunSuite with DatabaseSpec with ScalaFutures 
       uuid <- DeviceRepository.create(Namespaces.defaultNs, device)
       now = Instant.now()
       _     <- DeviceRepository.updateLastSeen(uuid, now)
-      count <- DeviceRepository.countActivatedDevices(Namespaces.defaultNs, now, now.plusSeconds(100))
+      count <- DeviceRepository.countActivatedDevices(Namespaces.defaultNs, now.minusMillis(1), now.plusSeconds(100))
     } yield count
 
     whenReady(db.run(createDevice), Timeout(Span(10, Seconds))) { count =>
