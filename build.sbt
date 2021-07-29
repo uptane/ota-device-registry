@@ -32,7 +32,7 @@ libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "3.2.9.0" % "t
 lazy val library =
   new {
     object Version {
-      val attoCore = "0.7.2"
+      val attoCore = "0.9.5"
       val scalaTest  = "3.2.9"
       val libAts     = "0.4.0-32-g4cbf873"
       val libTuf = "0.7.3-11-g4e7ccc6"
