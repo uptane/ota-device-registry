@@ -1,21 +1,23 @@
 package com.advancedtelematic.ota.deviceregistry.db
 
 import java.time.Instant
-
 import cats.syntax.option._
 import com.advancedtelematic.libats.data.DataType.{CampaignId, CorrelationId, MultiTargetUpdateId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, Event, EventType}
-import com.advancedtelematic.libats.test.DatabaseSpec
+import com.advancedtelematic.ota.deviceregistry.DatabaseSpec
 import com.advancedtelematic.ota.deviceregistry.data.DataType.{IndexedEvent, IndexedEventType}
 import com.advancedtelematic.ota.deviceregistry.data.GeneratorOps._
 import io.circe.Json
 import io.circe.syntax._
 import org.scalacheck.Gen
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{EitherValues, FunSuite, Matchers}
-import java.util.UUID
+import org.scalatest.EitherValues
 
-class EventIndexSpec extends FunSuite with ScalaFutures with DatabaseSpec with Matchers with EitherValues {
+import java.util.UUID
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
+
+class EventIndexSpec extends AnyFunSuite with ScalaFutures with DatabaseSpec with Matchers with EitherValues {
 
   val genCorrelationId: Gen[CorrelationId] =
     Gen.uuid.flatMap(uuid => Gen.oneOf(CampaignId(uuid), MultiTargetUpdateId(uuid)))

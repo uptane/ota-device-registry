@@ -30,7 +30,7 @@ import scala.util.Random
 trait GroupRequests {
   self: ResourceSpec =>
 
-  private val defaultExpression = GroupExpression("deviceid contains abcd").right.get
+  private val defaultExpression = GroupExpression.from("deviceid contains abcd").right.get
   protected val groupsApi = "device_groups"
 
   def listDevicesInGroup(groupId: GroupId, offset: Option[Long] = None, limit: Option[Long] = None)

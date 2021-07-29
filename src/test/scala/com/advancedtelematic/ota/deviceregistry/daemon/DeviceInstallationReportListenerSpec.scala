@@ -4,16 +4,15 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.advancedtelematic.libats.data.DataType.ResultCode
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs.deviceUpdateCompletedCodec
-import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceInstallationResult, EcuInstallationResult}
 import com.advancedtelematic.ota.deviceregistry.data.GeneratorOps._
 import com.advancedtelematic.ota.deviceregistry.data.InstallationReportGenerators
 import com.advancedtelematic.ota.deviceregistry.db.InstallationReportRepository
-import com.advancedtelematic.ota.deviceregistry.ResourcePropSpec
+import com.advancedtelematic.ota.deviceregistry.{DatabaseSpec, ResourcePropSpec}
 import io.circe.syntax._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Seconds, Span}
-import org.scalatest.Matchers
+import org.scalatest.matchers.should.Matchers
 
 class DeviceUpdateEventListenerSpec
     extends ResourcePropSpec
