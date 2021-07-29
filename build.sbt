@@ -39,7 +39,7 @@ lazy val library =
       val akka = "2.6.15"
       val akkaHttp = "10.2.4"
       val alpakkaCsv = "2.0.0"
-      val mariaDb = "2.4.4"
+      val mariaDb = "2.7.3"
       val circe = "0.14.1"
       val toml = "0.2.2"
     }
