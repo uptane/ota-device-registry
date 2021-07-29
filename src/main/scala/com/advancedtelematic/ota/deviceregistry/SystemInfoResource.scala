@@ -9,7 +9,6 @@
 package com.advancedtelematic.ota.deviceregistry
 
 import java.time.Instant
-
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
@@ -26,6 +25,7 @@ import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.{AktualizrConfigChanged, DeviceSystemInfoChanged}
 import com.advancedtelematic.ota.deviceregistry.common.Errors.{Codes, MissingSystemInfo}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.DeviceUuids
 import com.advancedtelematic.ota.deviceregistry.db.SystemInfoRepository
 import com.advancedtelematic.ota.deviceregistry.db.SystemInfoRepository.NetworkInfo
 import com.advancedtelematic.ota.deviceregistry.http.`application/toml`

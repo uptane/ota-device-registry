@@ -20,7 +20,7 @@ class DeviceRegistryRoutes(
     deviceNamespaceAuthorizer: Directive1[DeviceId],
     messageBus: MessageBusPublisher
 )(implicit db: Database, system: ActorSystem, mat: Materializer, exec: ExecutionContext)
-    extends Directives {
+    extends Directives with Settings {
 
   val route: Route =
     pathPrefix("api") {
@@ -28,6 +28,7 @@ class DeviceRegistryRoutes(
         handleRejections(rejectionHandler) {
           ErrorHandler.handleErrors {
             new DevicesResource(namespaceExtractor, messageBus, deviceNamespaceAuthorizer).route ~
+            new DeviceMonitoringResource(namespaceExtractor, deviceNamespaceAuthorizer, messageBus).route ~
             new SystemInfoResource(messageBus, namespaceExtractor, deviceNamespaceAuthorizer).route ~
             new PublicCredentialsResource(namespaceExtractor, messageBus, deviceNamespaceAuthorizer).route ~
             new PackageListsResource(namespaceExtractor, deviceNamespaceAuthorizer).route ~

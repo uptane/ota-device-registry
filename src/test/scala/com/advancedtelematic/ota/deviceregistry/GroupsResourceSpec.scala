@@ -18,10 +18,10 @@ import akka.http.scaladsl.model.StatusCodes._
 import com.advancedtelematic.libats.data.{ErrorCodes, ErrorRepresentation, PaginationResult}
 import com.advancedtelematic.ota.deviceregistry.common.Errors.Codes.MalformedInput
 import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
-import org.scalatest.FunSuite
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.funsuite.AnyFunSuite
 
-class GroupsResourceSpec extends FunSuite with ResourceSpec with ScalaFutures {
+class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures {
   import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
   private val limit = 30
@@ -72,7 +72,7 @@ class GroupsResourceSpec extends FunSuite with ResourceSpec with ScalaFutures {
 
   test("gets all existing groups that contain a string") {
     val names = Seq("aabb", "baaxbc", "a123ba", "cba3b")
-    val groupNames = names.map(GroupName(_).right.get)
+    val groupNames = names.map(GroupName.from(_).right.get)
     groupNames.foreach(n => createGroupOk(n))
 
     val tests = Map("" -> names, "a1" -> Seq("a123ba"), "aa" -> Seq("aabb", "baaxbc"), "3b" -> Seq("a123ba", "cba3b"), "3" -> Seq("a123ba", "cba3b"))

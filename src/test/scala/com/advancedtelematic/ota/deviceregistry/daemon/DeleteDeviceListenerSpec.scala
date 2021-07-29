@@ -5,13 +5,15 @@ import com.advancedtelematic.ota.deviceregistry.data.GeneratorOps
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeleteDeviceRequest
-import com.advancedtelematic.libats.test.DatabaseSpec
+import com.advancedtelematic.ota.deviceregistry.DatabaseSpec
 import org.scalacheck.Gen
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
 final class DeleteDeviceListenerSpec
-    extends FunSuite
+    extends AnyFunSuite
     with Matchers
     with ScalaFutures
     with DatabaseSpec {
