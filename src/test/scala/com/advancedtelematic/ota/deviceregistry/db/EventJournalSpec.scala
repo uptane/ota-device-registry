@@ -11,7 +11,6 @@ package com.advancedtelematic.ota.deviceregistry.db
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import com.advancedtelematic.libats.codecs.CirceCodecs._

@@ -70,7 +70,7 @@ object GroupInfoRepository {
       .filter(_.id === id)
       .map(_.groupName)
       .update(newGroupName)
-      .handleIntegrityErrors(Errors.ConflictingDevice)
+//      .handleIntegrityErrors(Errors.ConflictingDevice)
       .handleSingleUpdateError(Errors.MissingGroup)
 
   def groupInfoNamespace(groupId: GroupId)(implicit ec: ExecutionContext): DBIO[Namespace] =
