@@ -32,14 +32,14 @@ libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "3.2.9.0" % "t
 lazy val library =
   new {
     object Version {
-      val attoCore = "0.7.2"
+      val attoCore = "0.9.5"
       val scalaTest  = "3.2.9"
       val libAts     = "0.4.0-32-g4cbf873"
       val libTuf = "0.7.3-11-g4e7ccc6"
       val akka = "2.6.15"
       val akkaHttp = "10.2.4"
-      val alpakkaCsv = "2.0.2"
-      val mariaDb = "2.4.4"
+      val alpakkaCsv = "2.0.0"
+      val mariaDb = "2.7.3"
       val circe = "0.14.1"
       val toml = "0.2.2"
     }
