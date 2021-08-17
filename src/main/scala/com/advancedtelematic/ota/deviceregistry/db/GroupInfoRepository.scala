@@ -65,12 +65,18 @@ object GroupInfoRepository {
       .handleIntegrityErrors(Errors.ConflictingGroup)
       .map(_ => id)
 
+  def deleteGroup(id: GroupId)(implicit ec: ExecutionContext): DBIO[Unit] =
+    groupInfos
+      .filter(_.id === id)
+      .delete
+      .handleSingleUpdateError(Errors.MissingGroup)
+
   def renameGroup(id: GroupId, newGroupName: GroupName)(implicit ec: ExecutionContext): DBIO[Unit] =
     groupInfos
       .filter(_.id === id)
       .map(_.groupName)
       .update(newGroupName)
-//      .handleIntegrityErrors(Errors.ConflictingDevice)
+      .handleIntegrityErrors(Errors.ConflictingDevice)
       .handleSingleUpdateError(Errors.MissingGroup)
 
   def groupInfoNamespace(groupId: GroupId)(implicit ec: ExecutionContext): DBIO[Namespace] =
