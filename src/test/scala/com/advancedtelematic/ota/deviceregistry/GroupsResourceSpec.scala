@@ -21,11 +21,15 @@ import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.EitherValues._
+import org.scalatest.time.{Millis, Seconds, Span}
 
 class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures {
   import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
   private val limit = 30
+
+  implicit override val patienceConfig =
+    PatienceConfig(timeout = Span(15, Seconds), interval = Span(15, Millis))
 
   test("gets all existing groups") {
     //TODO: PRO-1182 turn this back into a property when we can delete groups
