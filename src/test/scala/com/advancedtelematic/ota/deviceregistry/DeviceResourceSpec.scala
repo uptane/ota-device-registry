@@ -46,7 +46,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
   private val publisher     = new DeviceSeenListener(MessageBusPublisher.ignore)
 
   implicit override val patienceConfig =
-    PatienceConfig(timeout = Span(10, Seconds), interval = Span(100, Millis))
+    PatienceConfig(timeout = Span(30, Seconds), interval = Span(100, Millis))
 
   implicit def noShrink[T]: Shrink[T] = Shrink.shrinkAny
 
@@ -109,7 +109,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
           d.hcursor.downField("uuid").as[DeviceId].value == d1
         }.value
 
-        val createdAt = devicesJson.head.hcursor.downField("createdAt").as[Instant].value
+        val createdAt = createdDevice.hcursor.downField("createdAt").as[String].value
 
         val expected =
           s"""
@@ -120,7 +120,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
             |  "deviceId" : "${dt1.deviceId.underlying}",
             |  "deviceType" : "${dt1.deviceType.toString}",
             |  "lastSeen" : null,
-            |  "createdAt" : ${createdAt.asJson.noSpaces},
+            |  "createdAt" : "$createdAt",
             |  "activatedAt" : null,
             |  "deviceStatus" : "NotSeen"
             |}
@@ -705,7 +705,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
       listener.apply(DeleteDeviceRequest(defaultNs, uuid))
 
       import org.scalatest.time.SpanSugar._
-      eventually(timeout(5.seconds), interval(100.millis)) {
+      eventually {
         fetchByGroupId(groupId, offset = 0, limit = 10) ~> route ~> check {
           status shouldBe OK
           val devices = responseAs[PaginationResult[Device]]
@@ -739,7 +739,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     listener.apply(new DeleteDeviceRequest(defaultNs, uuid))
 
     import org.scalatest.time.SpanSugar._
-    eventually(timeout(5.seconds), interval(100.millis)) {
+    eventually {
       (0 until groupNumber).foreach { i =>
         fetchByGroupId(groupIds(i), offset = 0, limit = deviceNumber) ~> route ~> check {
           status shouldBe OK
