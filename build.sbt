@@ -34,9 +34,9 @@ lazy val library =
     object Version {
       val attoCore = "0.9.5"
       val scalaTest  = "3.2.9"
-      val libAts     = "1.1.0"
-      val libTuf = "0.9.0"
-      val akka = "2.6.16"
+      val libAts     = "2.0.3"
+      val libTuf = "0.8.1-26-gbdfd97a-SNAPSHOT"
+      val akka = "2.6.17"
       val akkaHttp = "10.2.6"
       val alpakkaCsv = "2.0.0"
       val mariaDb = "2.7.3"
@@ -56,7 +56,7 @@ lazy val library =
       "libats-http-tracing",
       "libats-logging"
     ).map("io.github.uptane" %% _ % Version.libAts)
-    val libTuf = "io.github.uptane" %% "libtuf-server" % Version.libTuf
+    val libTuf = "io.github.uptane" %% "libtuf" % Version.libTuf
     val akkaHttpTestKit = "com.typesafe.akka" %% "akka-http-testkit" % Version.akkaHttp
     val akkaStreamTestKit = "com.typesafe.akka" %% "akka-stream-testkit" % Version.akka
     val akkaAlpakkaCsv = "com.lightbend.akka" %% "akka-stream-alpakka-csv" % Version.alpakkaCsv
@@ -76,8 +76,7 @@ commonSettings ++
 gitSettings ++
 scalafmtSettings ++
 buildInfoSettings ++
-dockerSettings ++
-sonarSettings
+dockerSettings
 
 lazy val commonSettings =
   Seq(
@@ -98,14 +97,11 @@ lazy val commonSettings =
       "-encoding",
       "UTF-8"
     ),
-    unmanagedSourceDirectories.in(Compile) := Seq(scalaSource.in(Compile).value),
-    unmanagedSourceDirectories.in(Test) := Seq(scalaSource.in(Test).value),
-    // turn off the DotNet checker
-    dependencyCheckAssemblyAnalyzerEnabled := Some(false),
-    dependencyCheckSuppressionFiles := Seq(new File("dependency-check-suppressions.xml"))
+    Compile / unmanagedSourceDirectories := Seq((Compile / scalaSource).value),
+    Test / unmanagedSourceDirectories := Seq((Test / scalaSource).value),
   )
 
-mainClass in Compile := Some("com.advancedtelematic.ota.deviceregistry.Boot")
+Compile / mainClass := Some("com.advancedtelematic.ota.deviceregistry.Boot")
 
 lazy val gitSettings = Seq(
     git.useGitDescribe := true,
@@ -120,30 +116,21 @@ lazy val dockerSettings = Seq(
   dockerAliases ++= Seq(dockerAlias.value.withTag(git.formattedShaVersion.value)),
   dockerCommands ++= Seq(
     Cmd("USER", "root"),
-    Cmd("USER", (daemonUser in Docker).value)
+    Cmd("USER", (Docker / daemonUser).value)
   )
 )
 
 lazy val scalafmtSettings =
   Seq(
     scalafmtOnCompile := false,
-    scalafmtOnCompile.in(Sbt) := false,
+    Sbt / scalafmtOnCompile := false,
     scalafmtVersion := "1.3.0"
   )
 
 lazy val buildInfoSettings = Seq(
-  buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
-  buildInfoPackage := organization.value,
-  buildInfoOptions ++= Seq(BuildInfoOption.ToJson, BuildInfoOption.ToMap)
+  buildInfoOptions ++= Seq(BuildInfoOption.ToJson, BuildInfoOption.ToMap, BuildInfoOption.BuildTime),
+  buildInfoObject := "AppBuildInfo",
+  buildInfoPackage := "com.advancedtelematic.deviceregistry",
+  buildInfoUsePackageAsPath := true,
+  buildInfoOptions += BuildInfoOption.Traits("com.advancedtelematic.libats.boot.VersionInfoProvider")
 )
-
-lazy val sonarSettings = Seq(
-  sonarProperties ++= Map(
-    "sonar.projectName" -> "OTA Connect Device Registry",
-    "sonar.projectKey" -> "ota-connect-device-registry",
-    "sonar.host.url" -> "http://sonar.in.here.com",
-    "sonar.links.issue" -> "https://saeljira.it.here.com/projects/OTA/issues",
-    "sonar.links.scm" -> "https://main.gitlab.in.here.com/olp/edge/ota/connect/back-end/ota-device-registry",
-    "sonar.links.ci" -> "https://main.gitlab.in.here.com/olp/edge/ota/connect/back-end/ota-device-registry/pipelines",
-    "sonar.projectVersion" -> version.value,
-    "sonar.language" -> "scala"))

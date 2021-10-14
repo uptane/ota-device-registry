@@ -15,6 +15,7 @@ import com.advancedtelematic.ota.deviceregistry.DatabaseSpec
 import com.advancedtelematic.ota.deviceregistry.data.DeviceGenerators.{genDeviceId, genDeviceT}
 import com.advancedtelematic.ota.deviceregistry.data.DataType.DeletedDevice
 import com.advancedtelematic.ota.deviceregistry.data.Namespaces
+import com.typesafe.config.ConfigFactory
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.LoneElement._
