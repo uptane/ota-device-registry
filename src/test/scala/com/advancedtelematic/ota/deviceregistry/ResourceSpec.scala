@@ -18,6 +18,7 @@ import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.ota.deviceregistry.data.{DeviceGenerators, GroupGenerators, PackageIdGenerators, SimpleJsonGenerator}
 import com.advancedtelematic.ota.deviceregistry.db.DeviceRepository
+import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, Suite}
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
