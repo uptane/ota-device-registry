@@ -10,7 +10,7 @@ package com.advancedtelematic.ota.deviceregistry
 
 import akka.http.scaladsl.model.Uri.Query
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
-import com.advancedtelematic.ota.deviceregistry.data.{Group, GroupName, SortBy}
+import com.advancedtelematic.ota.deviceregistry.data.{Group, GroupExpression, GroupName, SortBy}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
@@ -20,11 +20,16 @@ import com.advancedtelematic.ota.deviceregistry.common.Errors.Codes.MalformedInp
 import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.EitherValues._
+import org.scalatest.time.{Millis, Seconds, Span}
 
 class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures {
   import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
   private val limit = 30
+
+  implicit override val patienceConfig =
+    PatienceConfig(timeout = Span(15, Seconds), interval = Span(15, Millis))
 
   test("gets all existing groups") {
     //TODO: PRO-1182 turn this back into a property when we can delete groups
@@ -50,6 +55,50 @@ class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures
       status shouldBe OK
       val responseGroups = responseAs[PaginationResult[Group]].values
       responseGroups.map(_.groupName).filter(sortedGroupNames.contains) shouldBe sortedGroupNames
+    }
+  }
+
+  import com.advancedtelematic.ota.deviceregistry.data.GeneratorOps._
+
+  test("DELETE deletes a static group and its members") {
+    val groupId = createStaticGroupOk()
+    val device = genDeviceT.generate
+
+    val deviceId = createDeviceOk(device)
+
+    addDeviceToGroupOk(groupId, deviceId)
+
+    countDevicesInGroup(groupId) ~> route ~> check {
+      status shouldBe OK
+      responseAs[Long] shouldBe 1
+    }
+
+    deleteGroup(groupId) ~> route ~> check {
+      status shouldBe NoContent
+    }
+
+    countDevicesInGroup(groupId) ~> route ~> check {
+      status shouldBe NotFound
+    }
+  }
+
+  test("DELETE deletes a dynamic group") {
+    val device = genDeviceT.generate
+    val groupId = createDynamicGroupOk(GroupExpression.from(s"deviceid contains ${device.deviceId.underlying}").value)
+
+    createDeviceOk(device)
+
+    countDevicesInGroup(groupId) ~> route ~> check {
+      status shouldBe OK
+      responseAs[Long] shouldBe 1
+    }
+
+    deleteGroup(groupId) ~> route ~> check {
+      status shouldBe NoContent
+    }
+
+    countDevicesInGroup(groupId) ~> route ~> check {
+      status shouldBe NotFound
     }
   }
 
