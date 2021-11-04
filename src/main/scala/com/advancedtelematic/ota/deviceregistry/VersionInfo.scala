@@ -8,15 +8,9 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
-import io.github.uptane.BuildInfo
+import com.advancedtelematic.deviceregistry.AppBuildInfo
+import com.advancedtelematic.libats.boot.VersionInfoProvider
 
-trait VersionInfo {
-  lazy val projectName: String = BuildInfo.name
-
-  lazy val version: String = {
-    val bi = BuildInfo
-    s"${bi.name}/${bi.version}"
-  }
-
-  lazy val versionMap: Map[String, Any] = BuildInfo.toMap
+trait VersionInfo extends com.advancedtelematic.libats.boot.VersionInfo {
+  override protected lazy val provider: VersionInfoProvider = AppBuildInfo
 }

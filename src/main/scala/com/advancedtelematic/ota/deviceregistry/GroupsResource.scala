@@ -26,7 +26,7 @@ import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
 import com.advancedtelematic.ota.deviceregistry.data.SortBy.SortBy
 import com.advancedtelematic.ota.deviceregistry.data._
-import com.advancedtelematic.ota.deviceregistry.db.{DeviceRepository, GroupInfoRepository}
+import com.advancedtelematic.ota.deviceregistry.db.{DeviceRepository, GroupInfoRepository, GroupMemberRepository}
 import com.advancedtelematic.ota.deviceregistry.http.nonNegativeLong
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder}
@@ -107,6 +107,15 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
     complete(StatusCodes.Created -> createGroupAndAddDevices)
   }
 
+  def deleteGroup(groupId: GroupId): Route = {
+    val io = for {
+      _ <- GroupMemberRepository.removeAllGroupMembers(groupId)
+      _ <- GroupInfoRepository.deleteGroup(groupId)
+    } yield StatusCodes.NoContent
+
+    complete(db.run(io.transactionally))
+  }
+
   def renameGroup(groupId: GroupId, newGroupName: GroupName): Route =
     complete(db.run(GroupInfoRepository.renameGroup(groupId, newGroupName)))
 
@@ -151,6 +160,9 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
               removeDeviceFromGroup(groupId, deviceUuid)
             }
           }
+        } ~
+        delete {
+          deleteGroup(groupId)
         } ~
         (put & path("rename") & parameter('groupName.as[GroupName])) { groupName =>
           renameGroup(groupId, groupName)
