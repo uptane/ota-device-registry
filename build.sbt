@@ -74,7 +74,6 @@ lazy val library =
 lazy val settings =
 commonSettings ++
 gitSettings ++
-scalafmtSettings ++
 buildInfoSettings ++
 dockerSettings
 
@@ -119,13 +118,6 @@ lazy val dockerSettings = Seq(
     Cmd("USER", (Docker / daemonUser).value)
   )
 )
-
-lazy val scalafmtSettings =
-  Seq(
-    scalafmtOnCompile := false,
-    Sbt / scalafmtOnCompile := false,
-    scalafmtVersion := "1.3.0"
-  )
 
 lazy val buildInfoSettings = Seq(
   buildInfoOptions ++= Seq(BuildInfoOption.ToJson, BuildInfoOption.ToMap, BuildInfoOption.BuildTime),
