@@ -106,17 +106,13 @@ lazy val gitSettings = Seq(
     git.useGitDescribe := true,
   )
 
-import com.typesafe.sbt.packager.docker.Cmd
 lazy val dockerSettings = Seq(
   dockerRepository := Some("advancedtelematic"),
   packageName := packageName.value,
   dockerBaseImage := "advancedtelematic/alpine-jre:adoptopenjdk-jre8u262-b10",
   dockerUpdateLatest := true,
   dockerAliases ++= Seq(dockerAlias.value.withTag(git.formattedShaVersion.value)),
-  dockerCommands ++= Seq(
-    Cmd("USER", "root"),
-    Cmd("USER", (Docker / daemonUser).value)
-  )
+  Docker / daemonUser := "daemon"
 )
 
 lazy val buildInfoSettings = Seq(
