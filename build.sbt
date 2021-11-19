@@ -74,7 +74,6 @@ lazy val library =
 lazy val settings =
 commonSettings ++
 gitSettings ++
-scalafmtSettings ++
 buildInfoSettings ++
 dockerSettings
 
@@ -107,25 +106,14 @@ lazy val gitSettings = Seq(
     git.useGitDescribe := true,
   )
 
-import com.typesafe.sbt.packager.docker.Cmd
 lazy val dockerSettings = Seq(
   dockerRepository := Some("advancedtelematic"),
   packageName := packageName.value,
   dockerBaseImage := "advancedtelematic/alpine-jre:adoptopenjdk-jre8u262-b10",
   dockerUpdateLatest := true,
   dockerAliases ++= Seq(dockerAlias.value.withTag(git.formattedShaVersion.value)),
-  dockerCommands ++= Seq(
-    Cmd("USER", "root"),
-    Cmd("USER", (Docker / daemonUser).value)
-  )
+  Docker / daemonUser := "daemon"
 )
-
-lazy val scalafmtSettings =
-  Seq(
-    scalafmtOnCompile := false,
-    Sbt / scalafmtOnCompile := false,
-    scalafmtVersion := "1.3.0"
-  )
 
 lazy val buildInfoSettings = Seq(
   buildInfoOptions ++= Seq(BuildInfoOption.ToJson, BuildInfoOption.ToMap, BuildInfoOption.BuildTime),
