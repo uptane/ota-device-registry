@@ -18,7 +18,7 @@ variables:
   POSTGRES_PASSWORD: "password"
   SERVICE: "device-registry"
 
-image: artifactory-horw.int.toradex.com/ota-docker-dev-horw/tdx-inno-ci-scala:0.0.1
+image: harbor-dev.int.toradex.com/ota-docker-dev-horw/tdx-inno-ci-scala:0.0.1
 
 services:
   - name: docker:dind
@@ -74,4 +74,3 @@ build docker image:
   variables:
     ARTIFACTORY_REPO: ota-docker-dev-horw
     SERVICE_NAME: device-registry
-
