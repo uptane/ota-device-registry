@@ -51,9 +51,10 @@ object DeviceRepository {
     def createdAt    = column[Instant]("created_at")
     def activatedAt  = column[Option[Instant]]("activated_at")
     def deviceStatus = column[DeviceStatus]("device_status")
+    def notes        = column[Option[String]]("notes")
 
     def * =
-      (namespace, uuid, deviceName, deviceId, deviceType, lastSeen, createdAt, activatedAt, deviceStatus).shaped <> ((Device.apply _).tupled, Device.unapply)
+      (namespace, uuid, deviceName, deviceId, deviceType, lastSeen, createdAt, activatedAt, deviceStatus, notes).shaped <> ((Device.apply _).tupled, Device.unapply)
 
     def pk = primaryKey("uuid", uuid)
   }
@@ -211,13 +212,31 @@ object DeviceRepository {
       .paginateResult(params.offset.orDefaultOffset, params.limit.orDefaultLimit)
   }
 
-  def updateDeviceName(ns: Namespace, uuid: DeviceId, deviceName: DeviceName)(implicit ec: ExecutionContext): DBIO[Unit] =
+  def setDevice(ns: Namespace, uuid: DeviceId, deviceName: DeviceName, notes: Option[String])(implicit ec: ExecutionContext): DBIO[Unit] =
     devices
       .filter(_.uuid === uuid)
-      .map(r => r.deviceName)
-      .update(deviceName)
+      .filter(_.namespace === ns)
+      .map(r => r.deviceName -> r.notes)
+      .update(deviceName -> notes)
       .handleIntegrityErrors(Errors.ConflictingDevice)
       .handleSingleUpdateError(Errors.MissingDevice)
+
+  def updateDevice(ns: Namespace, uuid: DeviceId, deviceName: Option[DeviceName], notes: Option[String])(implicit ec: ExecutionContext): DBIO[Unit] = {
+    val findQ = devices
+      .filter(_.uuid === uuid)
+      .filter(_.namespace === ns)
+
+    val updateQ = (deviceName, notes) match {
+      case (Some(_name), Some(_notes)) => findQ.map(r => r.deviceName -> r.notes).update(_name -> Option(_notes))
+      case (Some(_name), None) => findQ.map(r => r.deviceName).update(_name)
+      case (None, Some(_notes)) => findQ.map(r => r.notes).update(Option(_notes))
+      case (None, None) => DBIO.successful(0)
+    }
+
+    updateQ
+      .handleIntegrityErrors(Errors.ConflictingDevice)
+      .handleSingleUpdateError(Errors.MissingDevice)
+  }
 
   def findByUuid(uuid: DeviceId)(implicit ec: ExecutionContext): DBIO[Device] =
     devices

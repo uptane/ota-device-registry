@@ -54,7 +54,9 @@ object DataType {
                            credentials: Option[String] = None,
                            credentialsType: Option[CredentialsType] = None)
 
-  final case class UpdateDevice(deviceName: DeviceName)
+  final case class SetDevice(deviceName: DeviceName, notes: Option[String] = None)
+
+  final case class UpdateDevice(deviceName: Option[DeviceName], notes: Option[String])
 
   final case class DeletedDevice(
     namespace: Namespace,

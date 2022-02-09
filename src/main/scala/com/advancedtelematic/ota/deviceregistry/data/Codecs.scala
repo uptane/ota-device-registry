@@ -13,8 +13,11 @@ object Codecs {
   implicit val deviceTEncoder = io.circe.generic.semiauto.deriveEncoder[DeviceT]
   implicit val deviceTDecoder = io.circe.generic.semiauto.deriveDecoder[DeviceT]
 
-  implicit val updateDeviceEncoder = io.circe.generic.semiauto.deriveEncoder[UpdateDevice]
-  implicit val updateDeviceDecoder = io.circe.generic.semiauto.deriveDecoder[UpdateDevice]
+  implicit val setDeviceEncoder = io.circe.generic.semiauto.deriveEncoder[SetDevice]
+  implicit val setDeviceDecoder = io.circe.generic.semiauto.deriveDecoder[SetDevice]
+
+  implicit val updateDeviceEncoder: Encoder[UpdateDevice] = io.circe.generic.semiauto.deriveEncoder[UpdateDevice]
+  implicit val updateDeviceDecoder: Decoder[UpdateDevice] = io.circe.generic.semiauto.deriveDecoder[UpdateDevice]
 
   implicit val resultCodeCodec = io.circe.generic.semiauto.deriveCodec[ResultCode]
 

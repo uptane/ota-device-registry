@@ -26,7 +26,8 @@ final case class Device(namespace: Namespace,
                         lastSeen: Option[Instant] = None,
                         createdAt: Instant,
                         activatedAt: Option[Instant] = None,
-                        deviceStatus: DeviceStatus = NotSeen)
+                        deviceStatus: DeviceStatus = NotSeen,
+                        notes: Option[String] = None)
 
 object Device {
 
