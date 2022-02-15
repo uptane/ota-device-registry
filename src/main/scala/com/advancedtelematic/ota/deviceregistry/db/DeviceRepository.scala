@@ -33,6 +33,7 @@ import com.advancedtelematic.ota.deviceregistry.db.TaggedDeviceRepository.{Tagge
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext
+import cats.syntax.option._
 
 object DeviceRepository {
 
@@ -88,7 +89,7 @@ object DeviceRepository {
 
     val dbIO = devices += dbDevice
     dbIO
-      .handleIntegrityErrors(Errors.ConflictingDevice)
+      .handleIntegrityErrors(Errors.ConflictingDevice(device.deviceName.some, device.deviceId.some))
       .andThen { GroupMemberRepository.addDeviceToDynamicGroups(ns, dbDevice, Map.empty) }
       .map(_ => uuid)
       .transactionally
@@ -102,7 +103,7 @@ object DeviceRepository {
       (created, uuid) <- devs match {
         case Seq()  => create(ns, devT).map((true, _))
         case Seq(d) => DBIO.successful((false, d.uuid))
-        case _      => DBIO.failed(Errors.ConflictingDevice)
+        case _      => DBIO.failed(Errors.ConflictingDevice(devT.deviceName.some, devT.deviceId.some))
       }
     } yield (created, uuid)
 
@@ -214,11 +215,11 @@ object DeviceRepository {
 
   def setDevice(ns: Namespace, uuid: DeviceId, deviceName: DeviceName, notes: Option[String])(implicit ec: ExecutionContext): DBIO[Unit] =
     devices
-      .filter(_.uuid === uuid)
       .filter(_.namespace === ns)
+      .filter(_.uuid === uuid)
       .map(r => r.deviceName -> r.notes)
       .update(deviceName -> notes)
-      .handleIntegrityErrors(Errors.ConflictingDevice)
+      .handleIntegrityErrors(Errors.ConflictingDevice(deviceName.some))
       .handleSingleUpdateError(Errors.MissingDevice)
 
   def updateDevice(ns: Namespace, uuid: DeviceId, deviceName: Option[DeviceName], notes: Option[String])(implicit ec: ExecutionContext): DBIO[Unit] = {
@@ -234,7 +235,7 @@ object DeviceRepository {
     }
 
     updateQ
-      .handleIntegrityErrors(Errors.ConflictingDevice)
+      .handleIntegrityErrors(Errors.ConflictingDevice(deviceName))
       .handleSingleUpdateError(Errors.MissingDevice)
   }
 
