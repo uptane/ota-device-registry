@@ -74,7 +74,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
   property("GET, PUT, DELETE, and POST '/ping' request fails on non-existent device") {
     forAll { (uuid: DeviceId, device: DeviceT) =>
       fetchDevice(uuid) ~> route ~> check { status shouldBe NotFound }
-      updateDevice(uuid, device.deviceName) ~> route ~> check { status shouldBe NotFound }
+      setDevice(uuid, device.deviceName) ~> route ~> check { status shouldBe NotFound }
       deleteDevice(uuid) ~> route ~> check { status shouldBe NotFound }
     }
   }
@@ -122,7 +122,8 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
             |  "lastSeen" : null,
             |  "createdAt" : "$createdAt",
             |  "activatedAt" : null,
-            |  "deviceStatus" : "NotSeen"
+            |  "deviceStatus" : "NotSeen",
+            |  "notes" : null
             |}
             |""".stripMargin
 
@@ -189,7 +190,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
       case Seq(d1, d2) =>
         val uuid: DeviceId = createDeviceOk(d1)
 
-        updateDevice(uuid, d2.deviceName) ~> route ~> check {
+        setDevice(uuid, d2.deviceName) ~> route ~> check {
           status shouldBe OK
           fetchDevice(uuid) ~> route ~> check {
             status shouldBe OK
@@ -297,7 +298,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
       case Seq(d1: DeviceT, d2: DeviceT) =>
         val uuid = createDeviceOk(d1)
 
-        updateDevice(uuid, d2.deviceName) ~> route ~> check {
+        setDevice(uuid, d2.deviceName, "my notes".some) ~> route ~> check {
           status shouldBe OK
           fetchDevice(uuid) ~> route ~> check {
             status shouldBe OK
@@ -305,8 +306,87 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
             updatedDevice.deviceId shouldBe d1.deviceId
             updatedDevice.deviceType shouldBe d1.deviceType
             updatedDevice.lastSeen shouldBe None
+            updatedDevice.notes should contain("my notes")
           }
         }
+    }
+  }
+
+  property("unsets device notes on partial PUT") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    setDevice(uuid, deviceT.deviceName, notes = "some notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+
+    setDevice(uuid, deviceT.deviceName, notes = None) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.notes shouldBe empty
+      }
+    }
+  }
+
+  property("sets device notes on partial PATCH") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    updateDevice(uuid, newName = None, notes = "some notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe deviceT.deviceName
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+  }
+
+  property("sets device name on partial PATCH") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    updateDevice(uuid, newName = None, notes = "some notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe deviceT.deviceName
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+
+    updateDevice(uuid, newName = Option(DeviceName("New name")), notes = None) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe DeviceName("New name")
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+  }
+
+  property("sets device name and notes on full PATCH") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    updateDevice(uuid, newName = DeviceName("myname").some, notes = "some \uD83D\uDD25 notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe DeviceName("myname")
+        updatedDevice.notes should contain("some \uD83D\uDD25 notes")
+      }
     }
   }
 
@@ -317,7 +397,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
 
         sendDeviceSeen(uuid)
 
-        updateDevice(uuid, d2.deviceName) ~> route ~> check {
+        setDevice(uuid, d2.deviceName) ~> route ~> check {
           status shouldBe OK
           fetchDevice(uuid) ~> route ~> check {
             status shouldBe OK
@@ -334,7 +414,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
         val uuid1 = createDeviceOk(d1)
         val _ = createDeviceOk(d2)
 
-        updateDevice(uuid1, d2.deviceName) ~> route ~> check {
+        setDevice(uuid1, d2.deviceName) ~> route ~> check {
           status shouldBe Conflict
         }
     }

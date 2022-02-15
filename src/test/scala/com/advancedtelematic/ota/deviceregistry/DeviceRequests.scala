@@ -9,7 +9,6 @@
 package com.advancedtelematic.ota.deviceregistry
 
 import java.time.OffsetDateTime
-
 import akka.http.scaladsl.model.Uri.{Path, Query}
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpRequest, Multipart, StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
@@ -22,7 +21,7 @@ import com.advancedtelematic.libats.http.HttpOps.HttpRequestOps
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import com.advancedtelematic.ota.deviceregistry.data.DataType.InstallationStatsLevel.InstallationStatsLevel
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, TagInfo, UpdateDevice, UpdateTagValue}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, SetDevice, TagInfo, UpdateDevice, UpdateTagValue}
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
 import com.advancedtelematic.ota.deviceregistry.data.SortBy.SortBy
@@ -120,8 +119,11 @@ trait DeviceRequests { self: ResourceSpec =>
   def fetchNotSeenSince(hours: Int): HttpRequest =
     Get(Resource.uri(api).withQuery(Query("notSeenSinceHours" -> hours.toString, "limit" -> 1000.toString)))
 
-  def updateDevice(uuid: DeviceId, newName: DeviceName)(implicit ec: ExecutionContext): HttpRequest =
-    Put(Resource.uri(api, uuid.show), UpdateDevice(newName))
+  def setDevice(uuid: DeviceId, newName: DeviceName, notes: Option[String] = None)(implicit ec: ExecutionContext): HttpRequest =
+    Put(Resource.uri(api, uuid.show), SetDevice(newName, notes))
+
+  def updateDevice(uuid: DeviceId, newName: Option[DeviceName], notes: Option[String] = None)(implicit ec: ExecutionContext): HttpRequest =
+    Patch(Resource.uri(api, uuid.show), UpdateDevice(newName, notes))
 
   def createDevice(device: DeviceT)(implicit ec: ExecutionContext): HttpRequest =
     Post(Resource.uri(api), device)

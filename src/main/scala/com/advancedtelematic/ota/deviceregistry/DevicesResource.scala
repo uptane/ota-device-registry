@@ -9,7 +9,6 @@
 package com.advancedtelematic.ota.deviceregistry
 
 import java.time.{Instant, OffsetDateTime}
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
@@ -34,7 +33,7 @@ import com.advancedtelematic.ota.deviceregistry.common.Errors
 import com.advancedtelematic.ota.deviceregistry.common.Errors.MissingDevice
 import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import com.advancedtelematic.ota.deviceregistry.data.DataType.InstallationStatsLevel.InstallationStatsLevel
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, InstallationStatsLevel, RenameTagId, SearchParams, UpdateDevice, UpdateTagValue}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, InstallationStatsLevel, RenameTagId, SearchParams, SetDevice, UpdateDevice, UpdateTagValue}
 import com.advancedtelematic.ota.deviceregistry.data.Device.{ActiveDeviceCount, DeviceOemId}
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
@@ -155,8 +154,11 @@ class DevicesResource(
   def fetchDevice(uuid: DeviceId): Route =
     complete(db.run(DeviceRepository.findByUuid(uuid)))
 
+  def setDevice(ns: Namespace, uuid: DeviceId, updateDevice: SetDevice): Route =
+    complete(db.run(DeviceRepository.setDevice(ns, uuid, updateDevice.deviceName, updateDevice.notes)))
+
   def updateDevice(ns: Namespace, uuid: DeviceId, updateDevice: UpdateDevice): Route =
-    complete(db.run(DeviceRepository.updateDeviceName(ns, uuid, updateDevice.deviceName)))
+    complete(db.run(DeviceRepository.updateDevice(ns, uuid, updateDevice.deviceName, updateDevice.notes)))
 
   def countDynamicGroupCandidates(ns: Namespace, expression: GroupExpression): Route =
     complete(db.run(DeviceRepository.countDevicesForExpression(ns, expression)))
@@ -325,7 +327,10 @@ class DevicesResource(
             fetchDevice(uuid)
           }
         } ~
-        (put & pathEnd & entity(as[UpdateDevice])) { updateBody =>
+        (put & pathEnd & entity(as[SetDevice])) { setBody =>
+          setDevice(ns, uuid, setBody)
+        } ~
+        (patch & pathEnd & entity(as[UpdateDevice])) { updateBody =>
           updateDevice(ns, uuid, updateBody)
         } ~
         (patch & path("device_tags") & entity(as[UpdateTagValue])) { utv =>
