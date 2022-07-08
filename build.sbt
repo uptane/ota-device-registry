@@ -79,7 +79,7 @@ dockerSettings
 
 lazy val commonSettings =
   Seq(
-    scalaVersion := "2.12.14",
+    scalaVersion := "2.12.16",
     organization := "io.github.uptane",
     organizationName := "ATS Advanced Telematic Systems GmbH",
     name := "device-registry",
