@@ -35,4 +35,7 @@ object Codecs {
   implicit val tagInfoCodec = io.circe.generic.semiauto.deriveCodec[TagInfo]
 
   implicit val deviceUuidsCodec = io.circe.generic.semiauto.deriveCodec[DeviceUuids]
+
+  implicit val deviceQueryCodec = io.circe.generic.semiauto.deriveCodec[DevicesQuery]
+
 }

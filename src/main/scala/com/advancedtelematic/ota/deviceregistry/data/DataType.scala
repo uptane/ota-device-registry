@@ -105,4 +105,6 @@ object DataType {
   case class PackageListItemCount(packageId: PackageId, deviceCount: Int)
 
   case class DeviceUuids(deviceUuids: Seq[DeviceId])
+
+  case class DevicesQuery(oemIds: Option[List[DeviceOemId]], deviceUuids: Option[List[DeviceId]])
 }
