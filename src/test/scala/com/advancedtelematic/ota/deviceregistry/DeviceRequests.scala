@@ -21,7 +21,7 @@ import com.advancedtelematic.libats.http.HttpOps.HttpRequestOps
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import com.advancedtelematic.ota.deviceregistry.data.DataType.InstallationStatsLevel.InstallationStatsLevel
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, SetDevice, TagInfo, UpdateDevice, UpdateTagValue}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, DevicesQuery, SetDevice, TagInfo, UpdateDevice, UpdateTagValue}
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
 import com.advancedtelematic.ota.deviceregistry.data.SortBy.SortBy
@@ -74,7 +74,7 @@ trait DeviceRequests { self: ResourceSpec =>
 
   def listDevicesByUuids(deviceUuids: Seq[DeviceId], sortBy: Option[SortBy] = None): HttpRequest = {
     val m = sortBy.fold(Map.empty[String, String])(s => Map("sortBy" -> s.toString))
-    Get(Resource.uri(api).withQuery(Query(m)), DeviceUuids(deviceUuids))
+    Get(Resource.uri(api).withQuery(Query(m)), DevicesQuery(None, Some(deviceUuids.toList)))
   }
 
   def searchDevice(regex: String, offset: Long = 0, limit: Long = 50): HttpRequest =
