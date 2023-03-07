@@ -24,13 +24,15 @@ import com.advancedtelematic.ota.deviceregistry.data.DataType.InstallationStatsL
 import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, DevicesQuery, SetDevice, TagInfo, UpdateDevice, UpdateTagValue}
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
-import com.advancedtelematic.ota.deviceregistry.data.SortBy.SortBy
+import com.advancedtelematic.ota.deviceregistry.data.DeviceSortBy.DeviceSortBy
+import com.advancedtelematic.ota.deviceregistry.data.SortDirection.SortDirection
 import com.advancedtelematic.ota.deviceregistry.data.{Device, DeviceName, GroupExpression, PackageId, TagId}
 import com.advancedtelematic.ota.deviceregistry.http.`application/toml`
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 
 import scala.concurrent.ExecutionContext
+import scala.util.matching.Regex.Match
 
 /**
   * Generic test resource object
@@ -67,12 +69,17 @@ trait DeviceRequests { self: ResourceSpec =>
       responseAs[Device]
     }
 
-  def listDevices(sortBy: Option[SortBy] = None): HttpRequest = {
-    val m = sortBy.fold(Map.empty[String, String])(s => Map("sortBy" -> s.toString))
+  def listDevices(sortBy: Option[DeviceSortBy] = None, sortDirection: Option[SortDirection] = None): HttpRequest = {
+    val m = (sortBy, sortDirection) match {
+      case (None, _) => Map.empty[String, String]
+      case (Some(sort), None) => Map("sortBy" -> sort.toString)
+      case (Some(sort), Some(sortDir)) =>
+        Map("sortBy" -> sort.toString, "sortDirection" -> sortDir.toString)
+    }
     Get(Resource.uri(api).withQuery(Query(m)))
   }
 
-  def listDevicesByUuids(deviceUuids: Seq[DeviceId], sortBy: Option[SortBy] = None): HttpRequest = {
+  def listDevicesByUuids(deviceUuids: Seq[DeviceId], sortBy: Option[DeviceSortBy] = None): HttpRequest = {
     val m = sortBy.fold(Map.empty[String, String])(s => Map("sortBy" -> s.toString))
     Get(Resource.uri(api).withQuery(Query(m)), DevicesQuery(None, Some(deviceUuids.toList)))
   }

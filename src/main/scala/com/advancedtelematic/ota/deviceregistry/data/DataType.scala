@@ -1,7 +1,6 @@
 package com.advancedtelematic.ota.deviceregistry.data
 
 import java.time.Instant
-
 import cats.Show
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace, ResultCode}
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -9,9 +8,10 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, Event
 import com.advancedtelematic.ota.deviceregistry.data.CredentialsType.CredentialsType
 import com.advancedtelematic.ota.deviceregistry.data.DataType.IndexedEventType.IndexedEventType
 import com.advancedtelematic.ota.deviceregistry.data.Device.{DeviceOemId, DeviceType}
+import com.advancedtelematic.ota.deviceregistry.data.DeviceSortBy.DeviceSortBy
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
-import com.advancedtelematic.ota.deviceregistry.data.SortBy.SortBy
+import com.advancedtelematic.ota.deviceregistry.data.SortDirection.SortDirection
 import io.circe.Json
 
 object DataType {
@@ -78,7 +78,8 @@ object DataType {
       None,
       None,
       None,
-      Some(SortBy.CreatedAt),
+      Some(DeviceSortBy.CreatedAt),
+      Some(SortDirection.Asc),
       offset,
       limit
     )
@@ -90,7 +91,8 @@ object DataType {
                                 groupId: Option[GroupId],
                                 nameContains: Option[String],
                                 notSeenSinceHours: Option[Int],
-                                sortBy: Option[SortBy],
+                                sortBy: Option[DeviceSortBy],
+                                sortDirection: Option[SortDirection],
                                 offset: Option[Long],
                                 limit: Option[Long],
                                ) {

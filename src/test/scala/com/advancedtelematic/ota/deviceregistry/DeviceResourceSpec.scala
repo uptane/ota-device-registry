@@ -999,19 +999,99 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     }
   }
 
-  property("finds all the devices sorted by name") {
-    listDevices(Some(SortBy.Name)) ~> route ~> check {
+  property("finds all the devices sorted by name ascending") {
+    listDevices(Some(DeviceSortBy.Name)) ~> route ~> check {
       status shouldBe OK
       val devices = responseAs[PaginationResult[Device]].values
       devices shouldBe devices.sortBy(_.deviceName.value)
     }
   }
 
-  property("finds all the devices sorted by creation date") {
-    listDevices(Some(SortBy.CreatedAt)) ~> route ~> check {
+  property("finds all the devices sorted by name descending") {
+    listDevices(Some(DeviceSortBy.Name), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.deviceName.value).reverse
+    }
+  }
+
+  property("finds all the devices sorted by DeviceId ascending") {
+    listDevices(Some(DeviceSortBy.DeviceId)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.deviceId.underlying)
+    }
+  }
+
+  property("finds all the devices sorted by DeviceId descending") {
+    listDevices(Some(DeviceSortBy.DeviceId), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.deviceId.underlying).reverse
+    }
+  }
+
+  property("finds all the devices sorted by Uuid ascending") {
+    listDevices(Some(DeviceSortBy.Uuid)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.uuid.uuid.toString)
+    }
+  }
+
+  property("finds all the devices sorted by Uuid descending") {
+    listDevices(Some(DeviceSortBy.Uuid), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.uuid.uuid.toString).reverse
+    }
+  }
+
+  property("finds all the devices sorted by creation date ascending") {
+    listDevices(Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices.map(_.createdAt) shouldBe devices.sortBy(_.createdAt).map(_.createdAt)
+    }
+  }
+
+  property("finds all the devices sorted by creation date descending") {
+    listDevices(Some(DeviceSortBy.CreatedAt), Some(SortDirection.Desc)) ~> route ~> check {
       status shouldBe OK
       val devices = responseAs[PaginationResult[Device]].values
       devices.map(_.createdAt) shouldBe devices.sortBy(_.createdAt).map(_.createdAt).reverse
+    }
+  }
+
+  property("finds all the devices sorted by Activation Date ascending") {
+    listDevices(Some(DeviceSortBy.ActivatedAt)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.activatedAt)
+    }
+  }
+
+  property("finds all the devices sorted by Activation Date descending") {
+    listDevices(Some(DeviceSortBy.ActivatedAt), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices.map(_.activatedAt) shouldBe devices.sortBy(_.activatedAt).reverse.map(_.activatedAt)
+    }
+  }
+
+  property("finds all the devices sorted by LastSeen ascending") {
+    listDevices(Some(DeviceSortBy.LastSeen)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.lastSeen)
+    }
+  }
+
+  property("finds all the devices sorted by LastSeen descending") {
+    listDevices(Some(DeviceSortBy.LastSeen), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices.map(_.lastSeen) shouldBe devices.sortBy(_.lastSeen).reverse.map(_.lastSeen)
     }
   }
 
@@ -1457,7 +1537,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
         val devicesResponse = responseAs[List[Device]]
         devicesResponse.length shouldBe devices.length
@@ -1469,7 +1549,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
         val devicesResponse = responseAs[List[Device]]
         devicesResponse.length shouldBe devices.length
@@ -1491,7 +1571,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
         val devicesResponse = responseAs[List[Device]]
         devicesResponse.length shouldBe devices.length
@@ -1514,7 +1594,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
         val devicesResponse = responseAs[List[Device]]
         devicesResponse.length shouldBe devices.length
@@ -1537,7 +1617,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
         val devicesResponse = responseAs[List[Device]]
         devicesResponse.length shouldBe devices.length
@@ -1563,7 +1643,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
         val devicesResponse = responseAs[List[Device]]
         devicesResponse.length shouldBe devices.length
@@ -1589,7 +1669,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
         val devicesResponse = responseAs[List[Device]]
         devicesResponse.length shouldBe devices.length
