@@ -36,12 +36,14 @@ import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import com.advancedtelematic.ota.deviceregistry.data.DataType.InstallationStatsLevel.InstallationStatsLevel
 import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, DevicesQuery, InstallationStatsLevel, RenameTagId, SearchParams, SetDevice, UpdateDevice, UpdateTagValue}
 import com.advancedtelematic.ota.deviceregistry.data.Device.{ActiveDeviceCount, DeviceOemId}
+import com.advancedtelematic.ota.deviceregistry.data.DeviceSortBy.DeviceSortBy
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupExpressionAST.DeviceIdsQuery
+import com.advancedtelematic.ota.deviceregistry.data.GroupSortBy.GroupSortBy
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
-import com.advancedtelematic.ota.deviceregistry.data.SortBy.SortBy
+import com.advancedtelematic.ota.deviceregistry.data.SortDirection.SortDirection
 import com.advancedtelematic.ota.deviceregistry.data.TagId.validatedTagId
-import com.advancedtelematic.ota.deviceregistry.data.{Device, GroupExpression, PackageId, SortBy, TagId}
+import com.advancedtelematic.ota.deviceregistry.data.{Device, DeviceSortBy, GroupExpression, GroupSortBy, PackageId, SortDirection, TagId}
 import com.advancedtelematic.ota.deviceregistry.db.DbOps.PaginationResultOps
 import com.advancedtelematic.ota.deviceregistry.db._
 import com.advancedtelematic.ota.deviceregistry.messages.DeviceCreated
@@ -87,11 +89,30 @@ object DevicesResource {
       }
     }
 
-  implicit val sortByUnmarshaller: FromStringUnmarshaller[SortBy] = Unmarshaller.strict {
+  implicit val deviceSortByUnmarshaller: FromStringUnmarshaller[DeviceSortBy] = Unmarshaller.strict {
     _.toLowerCase match {
-      case "name"      => SortBy.Name
-      case "createdat" => SortBy.CreatedAt
+      case "name"      => DeviceSortBy.Name
+      case "createdat" => DeviceSortBy.CreatedAt
+      case "deviceid" => DeviceSortBy.DeviceId
+      case "uuid" => DeviceSortBy.Uuid
+      case "activatedat" => DeviceSortBy.ActivatedAt
+      case "lastseen" => DeviceSortBy.LastSeen
       case s           => throw new IllegalArgumentException(s"Invalid value for sorting parameter: '$s'.")
+    }
+  }
+  implicit val groupSortByUnmarshaller: FromStringUnmarshaller[GroupSortBy] = Unmarshaller.strict {
+    _.toLowerCase match {
+      case "name" => GroupSortBy.Name
+      case "createdat" => GroupSortBy.CreatedAt
+      case s           => throw new IllegalArgumentException(s"Invalid value for sorting parameter: '$s'.")
+    }
+  }
+
+  implicit val sortDirectionUnmarshaller: FromStringUnmarshaller[SortDirection] = Unmarshaller.strict {
+    _.toLowerCase match {
+      case "asc" => SortDirection.Asc
+      case "desc" => SortDirection.Desc
+      case s => throw new IllegalArgumentException(s"Invalid value for sorting direction: '$s'.")
     }
   }
 
@@ -123,7 +144,8 @@ class DevicesResource(
       'groupId.as[GroupId].?,
       'nameContains.as[String].?,
       'notSeenSinceHours.as[Int].?,
-      'sortBy.as[SortBy].?,
+      'sortBy.as[DeviceSortBy].?,
+      'sortDirection.as[SortDirection].?,
       'offset.as(nonNegativeLong).?,
       'limit.as(nonNegativeLong).?).as(SearchParams.apply _) { params =>
         complete(db.run(DeviceRepository.search(ns, params)))

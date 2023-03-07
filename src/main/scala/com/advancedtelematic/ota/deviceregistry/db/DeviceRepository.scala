@@ -10,7 +10,6 @@ package com.advancedtelematic.ota.deviceregistry.db
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -25,7 +24,7 @@ import com.advancedtelematic.ota.deviceregistry.data.DeviceStatus.DeviceStatus
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
 import com.advancedtelematic.ota.deviceregistry.data._
-import com.advancedtelematic.ota.deviceregistry.db.DbOps.{PaginationResultOps, sortBySlickOrderedDeviceConversion}
+import com.advancedtelematic.ota.deviceregistry.db.DbOps.{PaginationResultOps, deviceTableToSlickOrder}
 import com.advancedtelematic.ota.deviceregistry.db.GroupInfoRepository.groupInfos
 import com.advancedtelematic.ota.deviceregistry.db.GroupMemberRepository.groupMembers
 import com.advancedtelematic.ota.deviceregistry.db.SlickMappings._
@@ -189,24 +188,27 @@ object DeviceRepository {
             (implicit ec: ExecutionContext): DBIO[PaginationResult[Device]] = {
     val query = params match {
 
-      case SearchParams(Some(oemId), _, _, None, None, None, _, _, _) =>
+      case SearchParams(Some(oemId), _, _, None, None, None, _, _, _, _) =>
         findByDeviceIdQuery(ns, oemId)
 
-      case SearchParams(None, Some(true), gt, None, nameContains, None, _, _, _) =>
+      case SearchParams(None, Some(true), gt, None, nameContains, None, _, _, _, _) =>
         runQueryFilteringByName(ns, groupedDevicesQuery(ns, gt), nameContains)
 
-      case SearchParams(None, Some(false), gt, None, nameContains, None, _, _, _) =>
+      case SearchParams(None, Some(false), gt, None, nameContains, None, _, _, _, _) =>
         val ungroupedDevicesQuery = devices.filterNot(_.uuid.in(groupedDevicesQuery(ns, gt).map(_.uuid)))
         runQueryFilteringByName(ns, ungroupedDevicesQuery, nameContains)
 
-      case SearchParams(None, _, _, gid, nameContains, notSeenSinceHours, _, _, _) =>
+      case SearchParams(None, _, _, gid, nameContains, notSeenSinceHours, _, _, _, _) =>
         searchQuery(ns, nameContains, gid, notSeenSinceHours)
 
       case _ => throw new IllegalArgumentException("Invalid parameter combination.")
     }
 
+    val sortBy = params.sortBy.getOrElse(DeviceSortBy.Name)
+    val sortDirection = params.sortDirection.getOrElse(SortDirection.Asc)
+
     query
-      .sortBy(params.sortBy.getOrElse(SortBy.Name))
+      .sortBy(devices => devices.ordered(sortBy, sortDirection))
       .paginateResult(params.offset.orDefaultOffset, params.limit.orDefaultLimit)
   }
 
