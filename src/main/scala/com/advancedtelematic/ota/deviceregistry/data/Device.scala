@@ -86,3 +86,18 @@ object Device {
     implicit val DecoderInstance = Decoder.decodeInt.map(ActiveDeviceCount.apply)
   }
 }
+
+object SortDirection {
+  sealed trait SortDirection
+  case object Asc extends SortDirection
+  case object Desc extends SortDirection
+}
+object DeviceSortBy {
+  sealed trait DeviceSortBy
+  case object Name      extends DeviceSortBy
+  case object CreatedAt extends DeviceSortBy
+  case object DeviceId extends DeviceSortBy
+  case object Uuid extends DeviceSortBy
+  case object ActivatedAt extends DeviceSortBy
+  case object LastSeen extends DeviceSortBy
+}
