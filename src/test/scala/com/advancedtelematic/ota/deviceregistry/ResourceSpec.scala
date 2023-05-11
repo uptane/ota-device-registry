@@ -15,6 +15,7 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.{NamespaceDirectives, ServiceHttpClientSupport}
 import com.advancedtelematic.libats.http.tracing.NullServerRequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
+import com.advancedtelematic.libats.messaging.test.MockMessageBus
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.ota.deviceregistry.data.{DeviceGenerators, GroupGenerators, PackageIdGenerators, SimpleJsonGenerator}
 import com.advancedtelematic.ota.deviceregistry.db.DeviceRepository
@@ -54,7 +55,7 @@ trait ResourceSpec
   private def deviceAllowed(deviceId: DeviceId): Future[Namespace] =
     db.run(DeviceRepository.deviceNamespace(deviceId))
 
-  lazy val messageBus = MessageBus.publisher(system, system.settings.config)
+  lazy val messageBus = new MockMessageBus
 
   implicit val tracing = new NullServerRequestTracing
 

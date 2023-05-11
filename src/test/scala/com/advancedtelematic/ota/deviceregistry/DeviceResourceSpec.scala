@@ -8,6 +8,8 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
+import akka.http.scaladsl.model.StatusCodes
+
 import java.time.temporal.ChronoUnit
 import java.time.{Instant, OffsetDateTime}
 import java.util.UUID
@@ -18,11 +20,11 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{ErrorCodes, ErrorRepresentation, PaginationResult}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeleteDeviceRequest, DeviceSeen}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeleteDeviceRequest, DeviceSeen, HibernateStateChanged}
 import com.advancedtelematic.ota.deviceregistry.common.Errors.Codes
 import com.advancedtelematic.ota.deviceregistry.common.{Errors, PackageStat}
 import com.advancedtelematic.ota.deviceregistry.daemon.{DeleteDeviceListener, DeviceSeenListener}
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DevicesQuery, RenameTagId, TagInfo}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DevicesQuery, RenameTagId, TagInfo, UpdateHibernationStatusRequest}
 import com.advancedtelematic.ota.deviceregistry.data.DeviceName.validatedDeviceType
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.Codecs._
@@ -35,6 +37,7 @@ import io.circe.syntax.EncoderOps
 import org.scalacheck.Arbitrary._
 import org.scalacheck.{Gen, Shrink}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 import org.scalatest.time.{Millis, Seconds, Span}
 
 /**
@@ -127,7 +130,8 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
             |  "createdAt" : "$createdAt",
             |  "activatedAt" : null,
             |  "deviceStatus" : "NotSeen",
-            |  "notes" : null
+            |  "notes" : null,
+            |  "hibernated" : false
             |}
             |""".stripMargin
 
@@ -1690,6 +1694,47 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
           errMap("missingDeviceUuids") should not be empty
         }
       }
+    }
+  }
+
+  import cats.syntax.show._
+  import org.scalatest.OptionValues._
+
+  property("sets hibernate state") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    Post(Resource.uri(api, uuid.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val device = fetchDeviceOk(uuid)
+    device.hibernated shouldBe true
+  }
+
+  property("sends message including previous hibernate state") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    Post(Resource.uri(api, uuid.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    var device = fetchDeviceOk(uuid)
+    device.hibernated shouldBe true
+    messageBus.reset()
+
+    Post(Resource.uri(api, uuid.show, "hibernation"), UpdateHibernationStatusRequest(false)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    device = fetchDeviceOk(uuid)
+    device.hibernated shouldBe false
+
+    eventually(timeout(3.seconds), interval(100.millis)) {
+      val msg = messageBus.findReceived((msg: HibernateStateChanged) => msg.uuid == uuid).value
+      msg.previousState shouldBe Some(true)
+      msg.newState shouldBe false
     }
   }
 }

@@ -8,6 +8,7 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
+import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
@@ -19,8 +20,11 @@ import akka.stream.scaladsl.{Framing, Sink, Source}
 import akka.util.ByteString
 import cats.syntax.either._
 import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.Messages.HibernateStateChanged
 import com.advancedtelematic.ota.deviceregistry.common.Errors
+import com.advancedtelematic.ota.deviceregistry.data.DataType.UpdateHibernationStatusRequest
 import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.GroupSortBy.GroupSortBy
@@ -32,9 +36,11 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder}
 import slick.jdbc.MySQLProfile.api._
 
+import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
 
-class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceAuthorizer: Directive1[DeviceId])
+class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceAuthorizer: Directive1[DeviceId],
+                     messageBus: MessageBusPublisher)
                     (implicit ec: ExecutionContext, db: Database, materializer: Materializer) extends Directives {
 
   private val DEVICE_OEM_ID_MAX_BYTES = 128
@@ -128,6 +134,19 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
   def removeDeviceFromGroup(groupId: GroupId, deviceId: DeviceId): Route =
     complete(groupMembership.removeGroupMember(groupId, deviceId))
 
+  // This can take some time, req. timeout should be bigger and/or this should be done in the background
+  def updateGroupHibernationStatus(ns: Namespace, groupId: GroupId): Route = {
+    post {
+      entity(as[UpdateHibernationStatusRequest]) { req =>
+        val publishSink = Sink.foreachAsync[DeviceId](parallelism = 4) { id =>
+          messageBus.publish(HibernateStateChanged(ns, id, Some(!req.status), req.status, Instant.now()))
+        }
+        val f = GroupMemberRepository.setHibernationStatus(groupId, req.status).runWith(publishSink)
+        complete(f)
+      }
+    }
+  }
+
   val route: Route =
     (pathPrefix("device_groups") & namespaceExtractor) { ns =>
       pathEnd {
@@ -147,6 +166,9 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
       GroupIdPath { groupId =>
         (get & pathEndOrSingleSlash) {
           getGroup(groupId)
+        } ~
+        path("hibernation") {
+           updateGroupHibernationStatus(ns, groupId)
         } ~
         pathPrefix("devices") {
           get {

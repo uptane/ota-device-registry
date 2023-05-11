@@ -18,16 +18,45 @@ import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.ota.deviceregistry.common.Errors
 import com.advancedtelematic.ota.deviceregistry.common.Errors.MemberAlreadyExists
+import com.advancedtelematic.ota.deviceregistry.data.DataType.HibernationStatus
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.{Device, GroupExpression, GroupExpressionAST, GroupType, TagId}
 import com.advancedtelematic.ota.deviceregistry.db.DbOps.PaginationResultOps
+import slick.jdbc.{GetResult, PositionedResult}
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.Tag
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
 
 object GroupMemberRepository {
+  def setHibernationStatus(groupId: GroupId, status: HibernationStatus)(implicit db: Database, ec: ExecutionContext): Source[DeviceId, NotUsed] = {
+    val batchSize = 200
+
+    implicit val getDeviceId: GetResult[DeviceId] = (pos: PositionedResult) => {
+      DeviceId.apply(UUID.fromString(pos.nextString()))
+    }
+
+    val sql =
+      sql"""
+            select d.uuid FROM Device d inner join GroupMembers gm ON gm.device_uuid = d.uuid
+            where gm.group_id = ${groupId.uuid.toString} AND
+            d.hibernated = ${!status}
+        """.as[DeviceId]
+
+    val source = Source.fromPublisher(db.stream(sql))
+      .grouped(batchSize)
+      .mapAsync(1) { group =>
+        db.run(DeviceRepository.devices
+          .filter(_.uuid.inSet(group))
+          .map(_.hibernated)
+          .update(status)
+          .map(_ => group))
+      }.async.mapConcat(identity)
+
+    source
+  }
 
   final case class GroupMember(groupId: GroupId, deviceUuid: DeviceId)
 
