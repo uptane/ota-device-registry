@@ -27,7 +27,8 @@ final case class Device(namespace: Namespace,
                         createdAt: Instant,
                         activatedAt: Option[Instant] = None,
                         deviceStatus: DeviceStatus = NotSeen,
-                        notes: Option[String] = None)
+                        notes: Option[String] = None,
+                        hibernated: Boolean = false)
 
 object Device {
 

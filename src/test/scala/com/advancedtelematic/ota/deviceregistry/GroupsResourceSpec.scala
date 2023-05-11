@@ -8,6 +8,9 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
+import org.scalatest.Inspectors._
+import com.advancedtelematic.ota.deviceregistry.data.Codecs._
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri.Query
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.{Group, GroupExpression, GroupName, GroupSortBy}
@@ -15,8 +18,10 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
 import akka.http.scaladsl.model.StatusCodes._
+import cats.implicits.toShow
 import com.advancedtelematic.libats.data.{ErrorCodes, ErrorRepresentation, PaginationResult}
 import com.advancedtelematic.ota.deviceregistry.common.Errors.Codes.MalformedInput
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, UpdateHibernationStatusRequest}
 import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.funsuite.AnyFunSuite
@@ -335,4 +340,39 @@ class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures
     }
   }
 
+  test("sets devices in group to hibernated") {
+    val groupId = createStaticGroupOk()
+    val deviceUuid = createDeviceOk(genDeviceT.sample.get)
+
+    addDeviceToGroupOk(groupId, deviceUuid)
+
+
+    Post(Resource.uri(groupsApi, groupId.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val device = fetchDeviceOk(deviceUuid)
+    device.hibernated shouldBe true
+  }
+
+  test("sets many devices in group to hibernated") {
+    val groupId = createStaticGroupOk()
+    val devices = Gen.listOfN(3, arbitrary[DeviceT]).sample.get
+    val deviceIds = scala.collection.mutable.Set.empty[DeviceId]
+
+    forAll(devices) { device =>
+      val id = createDeviceOk(device)
+      addDeviceToGroupOk(groupId, id)
+      deviceIds += id
+    }
+
+    Post(Resource.uri(groupsApi, groupId.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    forAll(deviceIds) { id =>
+      val device = fetchDeviceOk(id)
+      device.hibernated shouldBe true
+    }
+  }
 }

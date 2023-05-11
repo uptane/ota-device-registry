@@ -13,12 +13,9 @@ import java.time.temporal.ChronoUnit
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-import com.advancedtelematic.libats.slick.db.SlickExtensions._
-import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
 import com.advancedtelematic.ota.deviceregistry.common.Errors
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeletedDevice, DeviceT, SearchParams, TaggedDevice}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeletedDevice, DeviceT, HibernationStatus, SearchParams, TaggedDevice}
 import com.advancedtelematic.ota.deviceregistry.data.Device._
 import com.advancedtelematic.ota.deviceregistry.data.DeviceStatus.DeviceStatus
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
@@ -328,4 +325,18 @@ object DeviceRepository {
       .map(_.deviceStatus)
       .update(status)
       .handleSingleUpdateError(Errors.MissingDevice)
+
+  // Returns the previous hibernation status
+  def setHibernationStatus(id: DeviceId, status: HibernationStatus)(implicit ec: ExecutionContext): DBIO[HibernationStatus] = {
+    devices
+      .filter(_.uuid === id)
+      .map(_.hibernated)
+      .update(status)
+      .flatMap {
+        case c if c >= 1 =>
+          DBIO.successful(!status)
+        case c if c == 0 =>
+          DBIO.successful(status)
+      }
+  }
 }

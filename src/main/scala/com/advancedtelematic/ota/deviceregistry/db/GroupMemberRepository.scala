@@ -18,9 +18,11 @@ import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.ota.deviceregistry.common.Errors
 import com.advancedtelematic.ota.deviceregistry.common.Errors.MemberAlreadyExists
+import com.advancedtelematic.ota.deviceregistry.data.DataType.HibernationStatus
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
 import com.advancedtelematic.ota.deviceregistry.data.{Device, GroupExpression, GroupExpressionAST, GroupType, TagId}
 import com.advancedtelematic.ota.deviceregistry.db.DbOps.PaginationResultOps
+import slick.jdbc.{PositionedParameters, SetParameter}
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.Tag
 
@@ -28,6 +30,14 @@ import scala.concurrent.ExecutionContext
 import scala.util.Failure
 
 object GroupMemberRepository {
+  def setHibernationStatus(groupId: GroupId, status: HibernationStatus): DBIO[_] = {
+    implicit val setGroupId: SetParameter[GroupId] = (groupId: GroupId, pos: PositionedParameters) => pos.setString(groupId.uuid.toString)
+
+    sql"""
+            update Device d, #$tableName gm SET d.hibernated = $status WHERE
+            d.uuid = gm.device_uuid AND gm.group_id = $groupId
+        """.asUpdate
+  }
 
   final case class GroupMember(groupId: GroupId, deviceUuid: DeviceId)
 
@@ -44,8 +54,9 @@ object GroupMemberRepository {
       ((GroupMember.apply _).tupled, GroupMember.unapply)
   }
   // scalastyle:on
-
   val groupMembers = TableQuery[GroupMembersTable]
+
+  val tableName = groupMembers.baseTableRow.tableName
 
   //this method assumes that groupId and deviceId belong to the same namespace
   def addGroupMember(groupId: GroupId, deviceId: DeviceId)(implicit ec: ExecutionContext): DBIO[Int] =

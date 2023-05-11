@@ -1,3 +1,4 @@
 <configuration debug="true">
     <include resource="logback-libats.xml"/>
+<!--    <logger name="slick" level="debug" />-->
 </configuration>
