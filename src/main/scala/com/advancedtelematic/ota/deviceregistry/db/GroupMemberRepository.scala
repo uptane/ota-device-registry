@@ -8,6 +8,8 @@
 
 package com.advancedtelematic.ota.deviceregistry.db
 
+import akka.NotUsed
+import akka.stream.scaladsl.{Sink, Source}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
