@@ -33,7 +33,7 @@ object EcuReplacementRepository {
     def formerHardwareId = column[Option[HardwareIdentifier]]("former_hardware_id")
     def currentEcuId = column[Option[EcuIdentifier]]("current_ecu_id")
     def currentHardwareId = column[Option[HardwareIdentifier]]("current_hardware_id")
-    def replacedAt = column[Instant]("replaced_at")
+    def replacedAt = column[Instant]("replaced_at")(javaInstantMapping)
     def success = column[Boolean]("success")
 
     private def tupleToClass(record: Record): EcuReplacement =

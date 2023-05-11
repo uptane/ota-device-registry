@@ -29,10 +29,17 @@ import com.advancedtelematic.ota.deviceregistry.db.GroupInfoRepository.groupInfo
 import com.advancedtelematic.ota.deviceregistry.db.GroupMemberRepository.groupMembers
 import com.advancedtelematic.ota.deviceregistry.db.SlickMappings._
 import com.advancedtelematic.ota.deviceregistry.db.TaggedDeviceRepository.{TaggedDeviceTable, taggedDevices}
+import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+import com.advancedtelematic.libats.slick.db.SlickExtensions._
+import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext
 import cats.syntax.option._
+import eu.timepit.refined.string.Uuid
+import slick.jdbc.PositionedParameters
+
+import java.sql.Timestamp
 
 object DeviceRepository {
 
@@ -47,14 +54,15 @@ object DeviceRepository {
     def deviceId     = column[DeviceOemId]("device_id")
     def rawId        = column[String]("device_id")
     def deviceType   = column[DeviceType]("device_type")
-    def lastSeen     = column[Option[Instant]]("last_seen")
-    def createdAt    = column[Instant]("created_at")
-    def activatedAt  = column[Option[Instant]]("activated_at")
+    def lastSeen     = column[Option[Instant]]("last_seen")(javaInstantMapping.optionType)
+    def createdAt    = column[Instant]("created_at")(javaInstantMapping)
+    def activatedAt  = column[Option[Instant]]("activated_at")(javaInstantMapping.optionType)
     def deviceStatus = column[DeviceStatus]("device_status")
     def notes        = column[Option[String]]("notes")
+    def hibernated   = column[Boolean]("hibernated")
 
     def * =
-      (namespace, uuid, deviceName, deviceId, deviceType, lastSeen, createdAt, activatedAt, deviceStatus, notes).shaped <> ((Device.apply _).tupled, Device.unapply)
+      (namespace, uuid, deviceName, deviceId, deviceType, lastSeen, createdAt, activatedAt, deviceStatus, notes, hibernated).shaped <> ((Device.apply _).tupled, Device.unapply)
 
     def pk = primaryKey("uuid", uuid)
   }
@@ -157,7 +165,7 @@ object DeviceRepository {
     }
 
     val notSeenSinceFilter = optionalFilter(notSeenSinceHours) { (dt, h) =>
-      dt.lastSeen.map(i => i < Instant.now.minus(h, ChronoUnit.HOURS).bind).getOrElse(true.bind)
+      dt.lastSeen.map(i => i < Instant.now.minus(h, ChronoUnit.HOURS)).getOrElse(true.bind)
     }
 
     devices
@@ -295,14 +303,24 @@ object DeviceRepository {
       .result
       .failIfNotSingle(Errors.MissingDevice)
 
-  def countActivatedDevices(ns: Namespace, start: Instant, end: Instant): DBIO[Int] =
-    devices
-      .filter(_.namespace === ns)
-      .map(_.activatedAt.getOrElse(start.minusSeconds(36000)))
-      .filter(activatedAt => activatedAt >= start && activatedAt < end)
-      .distinct
-      .length
-      .result
+  def countActivatedDevices(ns: Namespace, start: Instant, end: Instant): DBIO[Int] = {
+    implicit val setInstant = new slick.jdbc.SetParameter[Instant] {
+      override def apply(value: Instant, pos: PositionedParameters): Unit = {
+        pos.setTimestamp(Timestamp.from(value))
+      }
+    }
+
+    // Using raw sql because SQL will it's own instant mapping for the comparisons, instead of javaInstantMapping
+    val sql =
+      sql"""
+            select count(*) from #${devices.baseTableRow.tableName} WHERE
+            namespace = ${ns.get} AND
+            activated_at >= $start AND
+            activated_at < $end
+        """
+
+    sql.as[Int].head
+  }
 
   def setDeviceStatus(uuid: DeviceId, status: DeviceStatus)(implicit ec: ExecutionContext): DBIO[Unit] =
     devices
