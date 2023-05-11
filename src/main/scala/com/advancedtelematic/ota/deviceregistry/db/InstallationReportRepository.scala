@@ -7,17 +7,17 @@ import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuInstallationReport}
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs.deviceUpdateCompletedCodec
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateCompleted
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceInstallationResult, EcuInstallationResult, InstallationStat}
+import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
+import io.circe.Json
+import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickCirceMapper._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickUrnMapper.correlationIdMapper
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceInstallationResult, EcuInstallationResult, InstallationStat}
-import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
-import io.circe.Json
-import slick.jdbc.MySQLProfile.api._
 import slick.lifted.AbstractTable
 
 import scala.concurrent.ExecutionContext
@@ -37,7 +37,7 @@ object InstallationReportRepository {
     def resultCode    = column[ResultCode]("result_code")
     def deviceUuid    = column[DeviceId]("device_uuid")
     def success = column[Boolean]("success")
-    def receivedAt = column[Instant]("received_at")
+    def receivedAt = column[Instant]("received_at")(javaInstantMapping)
     def installationReport = column[Json]("installation_report")
 
     def * =
@@ -122,20 +122,4 @@ object InstallationReportRepository {
   def installationReports(deviceId: DeviceId, offset: Long, limit: Long)
                          (implicit ec: ExecutionContext): DBIO[PaginationResult[Json]] =
     queryInstallationHistory(deviceId).paginateResult(offset, limit)
-
-  def fetchDeviceFailures(correlationId: CorrelationId, failureCode: Option[ResultCode])
-                         (implicit ec: ExecutionContext): DBIO[Seq[(DeviceOemId, ResultCode, ResultDescription)]] =
-      deviceInstallationResults
-        .filter(_.correlationId === correlationId)
-        .filter(_.success === false)
-        .maybeFilter(_.resultCode === failureCode)
-        .join(DeviceRepository.devices)
-        .on(_.deviceUuid === _.uuid)
-        .map { case (r, d) => (d.deviceId, r.resultCode, r.installationReport) }
-        .result
-        .map(_.map { case (deviceOemId, resultCode, report) => (
-          deviceOemId,
-          resultCode,
-          report.as[DeviceUpdateCompleted].fold(_ => ResultDescription(""), _.result.description))
-        })
 }

@@ -8,20 +8,31 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
+import org.scalatest.Inspectors._
+import com.advancedtelematic.ota.deviceregistry.data.Codecs._
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri.Query
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
-import com.advancedtelematic.ota.deviceregistry.data.{Group, GroupExpression, GroupName, SortBy}
+import com.advancedtelematic.ota.deviceregistry.data.{Group, GroupExpression, GroupName, GroupSortBy}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
 import akka.http.scaladsl.model.StatusCodes._
+import cats.implicits.toShow
 import com.advancedtelematic.libats.data.{ErrorCodes, ErrorRepresentation, PaginationResult}
+import com.advancedtelematic.libats.messaging_datatype.Messages.HibernateStateChanged
 import com.advancedtelematic.ota.deviceregistry.common.Errors.Codes.MalformedInput
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, UpdateHibernationStatusRequest}
 import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.EitherValues._
+import org.scalatest.concurrent.Eventually.eventually
+import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 import org.scalatest.time.{Millis, Seconds, Span}
+import org.scalatest.OptionValues._
+
+import scala.util.Random
 
 class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures {
   import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -105,7 +116,7 @@ class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures
   test("gets all existing groups sorted by creation time") {
     val groupIds = (1 to 20).map(_ => createGroupOk())
 
-    listGroups(Some(SortBy.CreatedAt)) ~> route ~> check {
+    listGroups(Some(GroupSortBy.CreatedAt)) ~> route ~> check {
       status shouldBe OK
       val responseGroups = responseAs[PaginationResult[Group]].values
       responseGroups.reverse.map(_.id).filter(groupIds.contains) shouldBe groupIds
@@ -335,4 +346,53 @@ class GroupsResourceSpec extends AnyFunSuite with ResourceSpec with ScalaFutures
     }
   }
 
+  test("sets devices in group to hibernated") {
+    val groupId = createStaticGroupOk()
+    val deviceUuid = createDeviceOk(genDeviceT.sample.get)
+
+    addDeviceToGroupOk(groupId, deviceUuid)
+
+
+    Post(Resource.uri(groupsApi, groupId.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val device = fetchDeviceOk(deviceUuid)
+    device.hibernated shouldBe true
+
+    eventually(timeout(3.seconds), interval(100.millis)) {
+      val msg = messageBus.findReceived((msg: HibernateStateChanged) => msg.uuid == deviceUuid).value
+      msg.previousState shouldBe Some(false)
+      msg.newState shouldBe true
+    }
+  }
+
+  test("sets many devices in group to hibernated") {
+    val groupId = createStaticGroupOk()
+    val devices = Gen.listOfN(203, arbitrary[DeviceT]).sample.get
+    val deviceIds = scala.collection.mutable.Set.empty[DeviceId]
+
+    forAll(devices) { device =>
+      val id = createDeviceOk(device)
+      addDeviceToGroupOk(groupId, id)
+      deviceIds += id
+    }
+
+    Post(Resource.uri(groupsApi, groupId.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    forAll(deviceIds) { id =>
+      val device = fetchDeviceOk(id)
+      device.hibernated shouldBe true
+    }
+
+    eventually(timeout(3.seconds), interval(100.millis)) {
+      forAll(deviceIds) { id =>
+        val msg = messageBus.findReceived((msg: HibernateStateChanged) => msg.uuid == id).value
+        msg.previousState shouldBe Some(false)
+        msg.newState shouldBe true
+      }
+    }
+  }
 }

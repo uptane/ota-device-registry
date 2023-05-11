@@ -8,6 +8,7 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
+import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
@@ -19,12 +20,15 @@ import akka.stream.scaladsl.{Framing, Sink, Source}
 import akka.util.ByteString
 import cats.syntax.either._
 import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.Messages.HibernateStateChanged
 import com.advancedtelematic.ota.deviceregistry.common.Errors
+import com.advancedtelematic.ota.deviceregistry.data.DataType.UpdateHibernationStatusRequest
 import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
+import com.advancedtelematic.ota.deviceregistry.data.GroupSortBy.GroupSortBy
 import com.advancedtelematic.ota.deviceregistry.data.GroupType.GroupType
-import com.advancedtelematic.ota.deviceregistry.data.SortBy.SortBy
 import com.advancedtelematic.ota.deviceregistry.data._
 import com.advancedtelematic.ota.deviceregistry.db.{DeviceRepository, GroupInfoRepository, GroupMemberRepository}
 import com.advancedtelematic.ota.deviceregistry.http.nonNegativeLong
@@ -32,9 +36,11 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder}
 import slick.jdbc.MySQLProfile.api._
 
+import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
 
-class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceAuthorizer: Directive1[DeviceId])
+class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceAuthorizer: Directive1[DeviceId],
+                     messageBus: MessageBusPublisher)
                     (implicit ec: ExecutionContext, db: Database, materializer: Materializer) extends Directives {
 
   private val DEVICE_OEM_ID_MAX_BYTES = 128
@@ -48,10 +54,10 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
   implicit val groupTypeUnmarshaller: FromStringUnmarshaller[GroupType] = Unmarshaller.strict(GroupType.withName)
   implicit val groupNameUnmarshaller: FromStringUnmarshaller[GroupName] = Unmarshaller.strict(GroupName.validatedGroupName.from(_).valueOr(throw _))
 
-  implicit val sortByUnmarshaller: FromStringUnmarshaller[SortBy] = Unmarshaller.strict {
+  implicit val sortByUnmarshaller: FromStringUnmarshaller[GroupSortBy] = Unmarshaller.strict {
     _.toLowerCase match {
-      case "name"      => SortBy.Name
-      case "createdat" => SortBy.CreatedAt
+      case "name"      => GroupSortBy.Name
+      case "createdat" => GroupSortBy.CreatedAt
       case s           => throw new IllegalArgumentException(s"Invalid value for sorting parameter: '$s'.")
     }
   }
@@ -63,7 +69,7 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
       complete(groupMembership.listDevices(groupId, offset, limit))
     }
 
-  def listGroups(ns: Namespace, offset: Option[Long], limit: Option[Long], sortBy: SortBy, nameContains: Option[String]): Route =
+  def listGroups(ns: Namespace, offset: Option[Long], limit: Option[Long], sortBy: GroupSortBy, nameContains: Option[String]): Route =
     complete(db.run(GroupInfoRepository.list(ns, offset, limit, sortBy, nameContains)))
 
   def getGroup(groupId: GroupId): Route =
@@ -128,11 +134,24 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
   def removeDeviceFromGroup(groupId: GroupId, deviceId: DeviceId): Route =
     complete(groupMembership.removeGroupMember(groupId, deviceId))
 
+  // This can take some time, req. timeout should be bigger and/or this should be done in the background
+  def updateGroupHibernationStatus(ns: Namespace, groupId: GroupId): Route = {
+    post {
+      entity(as[UpdateHibernationStatusRequest]) { req =>
+        val publishSink = Sink.foreachAsync[DeviceId](parallelism = 4) { id =>
+          messageBus.publish(HibernateStateChanged(ns, id, Some(!req.status), req.status, Instant.now()))
+        }
+        val f = GroupMemberRepository.setHibernationStatus(groupId, req.status).runWith(publishSink)
+        complete(f)
+      }
+    }
+  }
+
   val route: Route =
     (pathPrefix("device_groups") & namespaceExtractor) { ns =>
       pathEnd {
-        (get & parameters('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?, 'sortBy.as[SortBy].?, 'nameContains.as[String].?)) {
-          (offset, limit, sortBy, nameContains) => listGroups(ns, offset, limit, sortBy.getOrElse(SortBy.Name), nameContains)
+        (get & parameters('offset.as(nonNegativeLong).?, 'limit.as(nonNegativeLong).?, 'sortBy.as[GroupSortBy].?, 'nameContains.as[String].?)) {
+          (offset, limit, sortBy, nameContains) => listGroups(ns, offset, limit, sortBy.getOrElse(GroupSortBy.Name), nameContains)
         } ~
         post {
           entity(as[CreateGroup]) { req =>
@@ -147,6 +166,9 @@ class GroupsResource(namespaceExtractor: Directive1[Namespace], deviceNamespaceA
       GroupIdPath { groupId =>
         (get & pathEndOrSingleSlash) {
           getGroup(groupId)
+        } ~
+        path("hibernation") {
+           updateGroupHibernationStatus(ns, groupId)
         } ~
         pathPrefix("devices") {
           get {

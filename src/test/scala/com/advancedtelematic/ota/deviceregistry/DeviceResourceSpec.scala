@@ -8,8 +8,11 @@
 
 package com.advancedtelematic.ota.deviceregistry
 
+import akka.http.scaladsl.model.StatusCodes
+
 import java.time.temporal.ChronoUnit
 import java.time.{Instant, OffsetDateTime}
+import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes._
 import cats.syntax.either._
 import cats.syntax.option._
@@ -17,20 +20,24 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{ErrorCodes, ErrorRepresentation, PaginationResult}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeleteDeviceRequest, DeviceSeen}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeleteDeviceRequest, DeviceSeen, HibernateStateChanged}
+import com.advancedtelematic.ota.deviceregistry.common.Errors.Codes
 import com.advancedtelematic.ota.deviceregistry.common.{Errors, PackageStat}
 import com.advancedtelematic.ota.deviceregistry.daemon.{DeleteDeviceListener, DeviceSeenListener}
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, RenameTagId, TagInfo}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DevicesQuery, RenameTagId, TagInfo, UpdateHibernationStatusRequest}
 import com.advancedtelematic.ota.deviceregistry.data.DeviceName.validatedDeviceType
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
+import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import com.advancedtelematic.ota.deviceregistry.data.{Device, DeviceStatus, PackageId, _}
 import com.advancedtelematic.ota.deviceregistry.db.InstalledPackages.{DevicesCount, InstalledPackage}
 import com.advancedtelematic.ota.deviceregistry.db.{InstalledPackages, TaggedDeviceRepository}
 import io.circe.Json
 import io.circe.generic.auto._
+import io.circe.syntax.EncoderOps
 import org.scalacheck.Arbitrary._
 import org.scalacheck.{Gen, Shrink}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 import org.scalatest.time.{Millis, Seconds, Span}
 
 /**
@@ -74,7 +81,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
   property("GET, PUT, DELETE, and POST '/ping' request fails on non-existent device") {
     forAll { (uuid: DeviceId, device: DeviceT) =>
       fetchDevice(uuid) ~> route ~> check { status shouldBe NotFound }
-      updateDevice(uuid, device.deviceName) ~> route ~> check { status shouldBe NotFound }
+      setDevice(uuid, device.deviceName) ~> route ~> check { status shouldBe NotFound }
       deleteDevice(uuid) ~> route ~> check { status shouldBe NotFound }
     }
   }
@@ -122,7 +129,9 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
             |  "lastSeen" : null,
             |  "createdAt" : "$createdAt",
             |  "activatedAt" : null,
-            |  "deviceStatus" : "NotSeen"
+            |  "deviceStatus" : "NotSeen",
+            |  "notes" : null,
+            |  "hibernated" : false
             |}
             |""".stripMargin
 
@@ -189,7 +198,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
       case Seq(d1, d2) =>
         val uuid: DeviceId = createDeviceOk(d1)
 
-        updateDevice(uuid, d2.deviceName) ~> route ~> check {
+        setDevice(uuid, d2.deviceName) ~> route ~> check {
           status shouldBe OK
           fetchDevice(uuid) ~> route ~> check {
             status shouldBe OK
@@ -297,7 +306,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
       case Seq(d1: DeviceT, d2: DeviceT) =>
         val uuid = createDeviceOk(d1)
 
-        updateDevice(uuid, d2.deviceName) ~> route ~> check {
+        setDevice(uuid, d2.deviceName, "my notes".some) ~> route ~> check {
           status shouldBe OK
           fetchDevice(uuid) ~> route ~> check {
             status shouldBe OK
@@ -305,8 +314,87 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
             updatedDevice.deviceId shouldBe d1.deviceId
             updatedDevice.deviceType shouldBe d1.deviceType
             updatedDevice.lastSeen shouldBe None
+            updatedDevice.notes should contain("my notes")
           }
         }
+    }
+  }
+
+  property("unsets device notes on partial PUT") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    setDevice(uuid, deviceT.deviceName, notes = "some notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+
+    setDevice(uuid, deviceT.deviceName, notes = None) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.notes shouldBe empty
+      }
+    }
+  }
+
+  property("sets device notes on partial PATCH") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    updateDevice(uuid, newName = None, notes = "some notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe deviceT.deviceName
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+  }
+
+  property("sets device name on partial PATCH") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    updateDevice(uuid, newName = None, notes = "some notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe deviceT.deviceName
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+
+    updateDevice(uuid, newName = Option(DeviceName("New name")), notes = None) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe DeviceName("New name")
+        updatedDevice.notes should contain("some notes")
+      }
+    }
+  }
+
+  property("sets device name and notes on full PATCH") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    updateDevice(uuid, newName = DeviceName("myname").some, notes = "some \uD83D\uDD25 notes".some) ~> route ~> check {
+      status shouldBe OK
+      fetchDevice(uuid) ~> route ~> check {
+        status shouldBe OK
+        val updatedDevice: Device = responseAs[Device]
+        updatedDevice.deviceName shouldBe DeviceName("myname")
+        updatedDevice.notes should contain("some \uD83D\uDD25 notes")
+      }
     }
   }
 
@@ -317,7 +405,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
 
         sendDeviceSeen(uuid)
 
-        updateDevice(uuid, d2.deviceName) ~> route ~> check {
+        setDevice(uuid, d2.deviceName) ~> route ~> check {
           status shouldBe OK
           fetchDevice(uuid) ~> route ~> check {
             status shouldBe OK
@@ -334,7 +422,7 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
         val uuid1 = createDeviceOk(d1)
         val _ = createDeviceOk(d2)
 
-        updateDevice(uuid1, d2.deviceName) ~> route ~> check {
+        setDevice(uuid1, d2.deviceName) ~> route ~> check {
           status shouldBe Conflict
         }
     }
@@ -915,19 +1003,99 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     }
   }
 
-  property("finds all the devices sorted by name") {
-    listDevices(Some(SortBy.Name)) ~> route ~> check {
+  property("finds all the devices sorted by name ascending") {
+    listDevices(Some(DeviceSortBy.Name)) ~> route ~> check {
       status shouldBe OK
       val devices = responseAs[PaginationResult[Device]].values
       devices shouldBe devices.sortBy(_.deviceName.value)
     }
   }
 
-  property("finds all the devices sorted by creation date") {
-    listDevices(Some(SortBy.CreatedAt)) ~> route ~> check {
+  property("finds all the devices sorted by name descending") {
+    listDevices(Some(DeviceSortBy.Name), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.deviceName.value).reverse
+    }
+  }
+
+  property("finds all the devices sorted by DeviceId ascending") {
+    listDevices(Some(DeviceSortBy.DeviceId)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.deviceId.underlying)
+    }
+  }
+
+  property("finds all the devices sorted by DeviceId descending") {
+    listDevices(Some(DeviceSortBy.DeviceId), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.deviceId.underlying).reverse
+    }
+  }
+
+  property("finds all the devices sorted by Uuid ascending") {
+    listDevices(Some(DeviceSortBy.Uuid)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.uuid.uuid.toString)
+    }
+  }
+
+  property("finds all the devices sorted by Uuid descending") {
+    listDevices(Some(DeviceSortBy.Uuid), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.uuid.uuid.toString).reverse
+    }
+  }
+
+  property("finds all the devices sorted by creation date ascending") {
+    listDevices(Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices.map(_.createdAt) shouldBe devices.sortBy(_.createdAt).map(_.createdAt)
+    }
+  }
+
+  property("finds all the devices sorted by creation date descending") {
+    listDevices(Some(DeviceSortBy.CreatedAt), Some(SortDirection.Desc)) ~> route ~> check {
       status shouldBe OK
       val devices = responseAs[PaginationResult[Device]].values
       devices.map(_.createdAt) shouldBe devices.sortBy(_.createdAt).map(_.createdAt).reverse
+    }
+  }
+
+  property("finds all the devices sorted by Activation Date ascending") {
+    listDevices(Some(DeviceSortBy.ActivatedAt)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.activatedAt)
+    }
+  }
+
+  property("finds all the devices sorted by Activation Date descending") {
+    listDevices(Some(DeviceSortBy.ActivatedAt), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices.map(_.activatedAt) shouldBe devices.sortBy(_.activatedAt).reverse.map(_.activatedAt)
+    }
+  }
+
+  property("finds all the devices sorted by LastSeen ascending") {
+    listDevices(Some(DeviceSortBy.LastSeen)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices shouldBe devices.sortBy(_.lastSeen)
+    }
+  }
+
+  property("finds all the devices sorted by LastSeen descending") {
+    listDevices(Some(DeviceSortBy.LastSeen), Some(SortDirection.Desc)) ~> route ~> check {
+      status shouldBe OK
+      val devices = responseAs[PaginationResult[Device]].values
+      devices.map(_.lastSeen) shouldBe devices.sortBy(_.lastSeen).reverse.map(_.lastSeen)
     }
   }
 
@@ -1362,9 +1530,9 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
 
       listDevicesByUuids(uuids) ~> route ~> check {
         status shouldBe OK
-        val page = responseAs[PaginationResult[Device]]
-        page.total shouldBe devices.length
-        page.values.map(_.uuid) should contain theSameElementsAs uuids
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
       }
     }
   }
@@ -1373,13 +1541,200 @@ class DeviceResourceSpec extends ResourcePropSpec with ScalaFutures with Eventua
     forAll(genConflictFreeDeviceTs(10)) { devices =>
       val uuids = devices.map(createDeviceOk(_))
 
-      listDevicesByUuids(uuids, Some(SortBy.CreatedAt)) ~> route ~> check {
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
         status shouldBe OK
-        val page = responseAs[PaginationResult[Device]]
-        page.total shouldBe devices.length
-        page.values.map(_.uuid) should contain theSameElementsAs uuids
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
+      }
+    }
+  }
+  property("can query devices using DeviceOemIds") {
+    forAll(genConflictFreeDeviceTs(10)) { devices =>
+      val uuids = devices.map(createDeviceOk(_))
+
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+        status shouldBe OK
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
+
+        // so now try to do this with deviceOemIds
+        val deviceOemIds = devicesResponse.map(_.deviceId)
+        Get(Resource.uri("devices"), DevicesQuery(Some(deviceOemIds), None)) ~> route ~> check {
+          status shouldBe OK
+          val responseDevices = responseAs[List[Device]]
+          responseDevices.length shouldBe devices.length
+          responseDevices.map(_.deviceId) should contain theSameElementsAs deviceOemIds
+        }
       }
     }
   }
 
+  property("can query devices with DeviceOemIds AND DeviceUuids") {
+    forAll(genConflictFreeDeviceTs(10)) { devices =>
+      val uuids = devices.map(createDeviceOk(_))
+
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+        status shouldBe OK
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
+
+        // query the first 5 as deviceOemIds, and the last 5 as deviceUuids
+        val deviceOemIds = devicesResponse.slice(0, 5).map(_.deviceId)
+        val deviceUuids = devicesResponse.slice(5, devicesResponse.length).map(_.uuid)
+        Get(Resource.uri("devices"), DevicesQuery(Some(deviceOemIds), Some(deviceUuids))) ~> route ~> check {
+          status shouldBe OK
+          val responseDevices = responseAs[List[Device]]
+          responseDevices.length shouldBe devices.length
+          responseDevices should contain theSameElementsAs devicesResponse
+        }
+      }
+    }
+  }
+
+  property("querying devices with duplicate devices specified are not duplicated in response (response should be a set)") {
+    forAll(genConflictFreeDeviceTs(10)) { devices =>
+      val uuids = devices.map(createDeviceOk(_))
+
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+        status shouldBe OK
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
+
+        val deviceOemIds = devicesResponse.map(_.deviceId)
+        val deviceUuids = devicesResponse.map(_.uuid)
+        Get(Resource.uri("devices"), DevicesQuery(Some(deviceOemIds), Some(deviceUuids))) ~> route ~> check {
+          status shouldBe OK
+          val responseDevices = responseAs[List[Device]]
+          responseDevices.length shouldBe devices.length
+          responseDevices should contain theSameElementsAs devicesResponse
+          responseDevices.map(_.deviceId) should contain theSameElementsAs deviceOemIds
+        }
+      }
+    }
+  }
+
+  property("querying devices with bad DeviceOemId fails gracefully") {
+    forAll(genConflictFreeDeviceTs(10)) { devices =>
+      val uuids = devices.map(createDeviceOk(_))
+
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+        status shouldBe OK
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
+
+        val deviceOemIds = devicesResponse.map(_.deviceId) :+ DeviceOemId("not-real-deviceId")
+        Get(Resource.uri("devices"), DevicesQuery(Some(deviceOemIds), None)) ~> route ~> check {
+          status shouldBe NotFound
+          val errResponse = responseAs[ErrorRepresentation]
+          errResponse.code shouldBe Codes.MissingDevice
+          errResponse.cause  shouldBe defined
+          val errMap = errResponse.cause.getOrElse(Json.fromString("{}")).as[Map[String, String]].getOrElse(Map.empty[String, String])
+          errMap.keys should contain("missingDeviceUuids")
+          errMap.keys should contain("missingOemIds")
+          errMap("missingOemIds") should not be empty
+          errMap("missingDeviceUuids") shouldBe empty
+        }
+      }
+    }
+  }
+
+  property("querying devices with bad DeviceUuid fails gracefully") {
+    forAll(genConflictFreeDeviceTs(10)) { devices =>
+      val uuids = devices.map(createDeviceOk(_))
+
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+        status shouldBe OK
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
+
+        val deviceUuids = devicesResponse.map(_.uuid) :+ DeviceId(UUID.randomUUID())
+        Get(Resource.uri("devices"), DevicesQuery(None, Some(deviceUuids))) ~> route ~> check {
+          status shouldBe NotFound
+          val errResponse = responseAs[ErrorRepresentation]
+          errResponse.code shouldBe Codes.MissingDevice
+          errResponse.cause shouldBe defined
+          val errMap = errResponse.cause.getOrElse(Json.fromString("{}")).as[Map[String, String]].getOrElse(Map.empty[String, String])
+          errMap.keys should contain("missingDeviceUuids")
+          errMap.keys should contain("missingOemIds")
+          errMap("missingOemIds") shouldBe empty
+          errMap("missingDeviceUuids") should not be empty
+        }
+      }
+    }
+  }
+
+  property("querying devices with bad DeviceOemIds and DeviceUuids fails gracefully") {
+    forAll(genConflictFreeDeviceTs(10)) { devices =>
+      val uuids = devices.map(createDeviceOk(_))
+
+      listDevicesByUuids(uuids, Some(DeviceSortBy.CreatedAt)) ~> route ~> check {
+        status shouldBe OK
+        val devicesResponse = responseAs[List[Device]]
+        devicesResponse.length shouldBe devices.length
+        devicesResponse.map(_.uuid) should contain theSameElementsAs uuids
+
+        val deviceUuids = devicesResponse.map(_.uuid) :+ DeviceId(UUID.randomUUID())
+        val deviceOemIds = devicesResponse.map(_.deviceId) :+ DeviceOemId("not-real-deviceId")
+        Get(Resource.uri("devices"), DevicesQuery(Some(deviceOemIds), Some(deviceUuids))) ~> route ~> check {
+          status shouldBe NotFound
+          val errResponse = responseAs[ErrorRepresentation]
+          errResponse.code shouldBe Codes.MissingDevice
+          errResponse.cause shouldBe defined
+
+          val errMap = errResponse.cause.getOrElse(Json.fromString("{}")).as[Map[String, String]].getOrElse(Map.empty[String, String])
+          errMap.keys should contain("missingDeviceUuids")
+          errMap.keys should contain("missingOemIds")
+          errMap("missingOemIds") should not be empty
+          errMap("missingDeviceUuids") should not be empty
+        }
+      }
+    }
+  }
+
+  import cats.syntax.show._
+  import org.scalatest.OptionValues._
+
+  property("sets hibernate state") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    Post(Resource.uri(api, uuid.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val device = fetchDeviceOk(uuid)
+    device.hibernated shouldBe true
+  }
+
+  property("sends message including previous hibernate state") {
+    val deviceT = genDeviceT.generate
+    val uuid = createDeviceOk(deviceT)
+
+    Post(Resource.uri(api, uuid.show, "hibernation"), UpdateHibernationStatusRequest(true)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    var device = fetchDeviceOk(uuid)
+    device.hibernated shouldBe true
+    messageBus.reset()
+
+    Post(Resource.uri(api, uuid.show, "hibernation"), UpdateHibernationStatusRequest(false)) ~> route ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    device = fetchDeviceOk(uuid)
+    device.hibernated shouldBe false
+
+    eventually(timeout(3.seconds), interval(100.millis)) {
+      val msg = messageBus.findReceived((msg: HibernateStateChanged) => msg.uuid == uuid).value
+      msg.previousState shouldBe Some(true)
+      msg.newState shouldBe false
+    }
+  }
 }

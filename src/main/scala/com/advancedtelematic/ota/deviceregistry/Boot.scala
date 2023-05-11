@@ -19,9 +19,9 @@ import com.advancedtelematic.libats.http._
 import com.advancedtelematic.libats.http.tracing.Tracing
 import com.advancedtelematic.libats.messaging._
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, DatabaseSupport}
+import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseSupport}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
-import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
+import com.advancedtelematic.metrics.prometheus.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
 import com.advancedtelematic.ota.deviceregistry.db.DeviceRepository
 import com.advancedtelematic.ota.deviceregistry.http.`application/toml`
@@ -34,8 +34,6 @@ import scala.util.Try
 
 trait Settings {
   private lazy val _config = ConfigFactory.load().getConfig("ats.device-registry")
-
-  val directorUri = Uri(_config.getString("http.client.director.uri"))
 
   val host = _config.getString("http.server.host")
   val port = _config.getInt("http.server.port")

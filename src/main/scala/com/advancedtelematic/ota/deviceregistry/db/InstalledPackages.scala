@@ -55,7 +55,7 @@ object InstalledPackages {
     def device       = column[DeviceId]("device_uuid")
     def name         = column[PackageId.Name]("name")
     def version      = column[PackageId.Version]("version")
-    def lastModified = column[Instant]("last_modified")
+    def lastModified = column[Instant]("last_modified")(javaInstantMapping)
 
     def pk = primaryKey("pk_foreignInstalledPackage", (name, version, device))
 
