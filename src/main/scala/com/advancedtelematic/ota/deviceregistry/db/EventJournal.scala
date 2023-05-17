@@ -31,11 +31,11 @@ object EventJournal {
   class EventJournalTable(tag: Tag) extends Table[Event](tag, "EventJournal") {
     def deviceUuid       = column[DeviceId]("device_uuid")
     def eventId          = column[String]("event_id")
-    def deviceTime       = column[Instant]("device_time")
+    def deviceTime       = column[Instant]("device_time")(javaInstantMapping)
     def eventTypeId      = column[String]("event_type_id")
     def eventTypeVersion = column[Int]("event_type_version")
     def event            = column[Json]("event")
-    def receivedAt       = column[Instant]("received_at")
+    def receivedAt       = column[Instant]("received_at")(javaInstantMapping)
 
     def pk = primaryKey("events_pk", (deviceUuid, eventId))
 
@@ -62,7 +62,7 @@ object EventJournal {
     def eventId = column[String]("event_id")
     def eventType = column[IndexedEventType]("event_type")
     def correlationId = column[Option[CorrelationId]]("correlation_id")
-    def createdAt = column[Instant]("created_at")
+    def createdAt = column[Instant]("created_at")(javaInstantMapping)
 
     def pk = primaryKey("indexed_event_pk", (deviceUuid, eventId))
 

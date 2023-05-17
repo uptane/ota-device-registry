@@ -38,4 +38,5 @@ object Codecs {
 
   implicit val deviceQueryCodec = io.circe.generic.semiauto.deriveCodec[DevicesQuery]
 
+  implicit val updateHibernationStatusRequestCodec: Codec[UpdateHibernationStatusRequest] = io.circe.generic.semiauto.deriveCodec[UpdateHibernationStatusRequest]
 }

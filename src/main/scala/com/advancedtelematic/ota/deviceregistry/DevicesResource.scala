@@ -34,7 +34,7 @@ import com.advancedtelematic.ota.deviceregistry.common.Errors
 import com.advancedtelematic.ota.deviceregistry.common.Errors.{Codes, MissingDevice}
 import com.advancedtelematic.ota.deviceregistry.data.Codecs._
 import com.advancedtelematic.ota.deviceregistry.data.DataType.InstallationStatsLevel.InstallationStatsLevel
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, DevicesQuery, InstallationStatsLevel, RenameTagId, SearchParams, SetDevice, UpdateDevice, UpdateTagValue}
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceT, DeviceUuids, DevicesQuery, InstallationStatsLevel, RenameTagId, SearchParams, SetDevice, UpdateDevice, UpdateHibernationStatusRequest, UpdateTagValue}
 import com.advancedtelematic.ota.deviceregistry.data.Device.{ActiveDeviceCount, DeviceOemId}
 import com.advancedtelematic.ota.deviceregistry.data.DeviceSortBy.DeviceSortBy
 import com.advancedtelematic.ota.deviceregistry.data.Group.GroupId
@@ -324,6 +324,15 @@ class DevicesResource(
     }
   }
 
+  private def updateHibernationStatus(ns: Namespace, uuid: DeviceId): Route = {
+    post {
+      entity(as[UpdateHibernationStatusRequest]) { req =>
+        val f = db.run(DeviceRepository.setHibernationStatus(uuid, req.status))
+        complete(f.map(_ => StatusCodes.OK))
+      }
+    }
+  }
+
   def api: Route = namespaceExtractor { ns =>
     pathPrefix("devices") {
       (post & entity(as[DeviceT]) & pathEnd) { device =>
@@ -370,6 +379,9 @@ class DevicesResource(
           pathEnd {
             fetchDevice(uuid)
           }
+        } ~
+        path("hibernation") {
+          updateHibernationStatus(ns, uuid)
         } ~
         (put & pathEnd & entity(as[SetDevice])) { setBody =>
           setDevice(ns, uuid, setBody)

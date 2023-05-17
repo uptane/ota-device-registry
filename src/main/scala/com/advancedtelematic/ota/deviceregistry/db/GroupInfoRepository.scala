@@ -34,8 +34,8 @@ object GroupInfoRepository {
     def namespace  = column[Namespace]("namespace")
     def groupType     = column[GroupType]("type")
     def expression = column[Option[GroupExpression]]("expression")
-    def createdAt = column[Instant]("created_at")
-    def updatedAt = column[Instant]("updated_at")
+    def createdAt = column[Instant]("created_at")(javaInstantMapping)
+    def updatedAt = column[Instant]("updated_at")(javaInstantMapping)
 
     def * = (id, groupName, namespace, createdAt, groupType, expression) <> ((Group.apply _).tupled, Group.unapply)
   }
