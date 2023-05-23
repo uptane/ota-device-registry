@@ -335,7 +335,7 @@ class DevicesResource(
 
   def api: Route = namespaceExtractor { ns =>
     pathPrefix("devices") {
-      (post & entity(as[DeviceT]) & pathEnd) { device =>
+      (post & pathEnd & entity(as[DeviceT])) { device =>
         createDevice(ns, device)
       } ~
       get {
