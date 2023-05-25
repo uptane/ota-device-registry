@@ -27,7 +27,7 @@ lazy val `ota-device-registry` =
 // Library dependencies
 // *****************************************************************************
 
-libraryDependencies += "org.scalatestplus" %% "scalacheck-1-15" % "3.2.11.0" % "test"
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-16" % "3.2.14.0" % "test"
 
 lazy val library =
   new {
