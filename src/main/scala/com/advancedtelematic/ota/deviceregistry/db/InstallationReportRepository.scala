@@ -7,17 +7,17 @@ import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuInstallationReport}
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs.deviceUpdateCompletedCodec
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateCompleted
+import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceInstallationResult, EcuInstallationResult, InstallationStat}
+import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
+import io.circe.Json
+import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickCirceMapper._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickUrnMapper.correlationIdMapper
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
-import com.advancedtelematic.ota.deviceregistry.data.DataType.{DeviceInstallationResult, EcuInstallationResult, InstallationStat}
-import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-import com.advancedtelematic.ota.deviceregistry.data.Device.DeviceOemId
-import io.circe.Json
-import slick.jdbc.MySQLProfile.api._
 import slick.lifted.AbstractTable
 
 import scala.concurrent.ExecutionContext
@@ -37,7 +37,7 @@ object InstallationReportRepository {
     def resultCode    = column[ResultCode]("result_code")
     def deviceUuid    = column[DeviceId]("device_uuid")
     def success = column[Boolean]("success")
-    def receivedAt = column[Instant]("received_at")
+    def receivedAt = column[Instant]("received_at")(javaInstantMapping)
     def installationReport = column[Json]("installation_report")
 
     def * =
